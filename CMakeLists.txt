@@ -69,6 +69,7 @@ add_subdirectory(channel_estimation)
 add_subdirectory(modulation_mapping)
 add_subdirectory(fft_processing)
 add_subdirectory(mimo_detection)
+add_subdirectory(neural_beamforming)
 
 # Tests
 if(BUILD_TESTS)

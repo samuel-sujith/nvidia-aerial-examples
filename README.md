@@ -52,6 +52,13 @@ nvidia-aerial-examples/
 │   ├── mimo_detection_example.cpp # Complete comprehensive example with benchmarks
 │   ├── README.md                # Detailed module documentation
 │   └── CMakeLists.txt           # Build configuration
+├── neural_beamforming/          # ML-based neural beamforming
+│   ├── neural_beamforming_pipeline.hpp # Neural beamforming with TensorRT integration
+│   ├── neural_beamforming_pipeline.cpp # ML pipeline implementation with training
+│   ├── neural_beamforming_example.cpp  # Simple ML integration demonstration
+│   ├── neural_beamforming_ml_example.cpp # Comprehensive ML pipeline example
+│   ├── README.md                # ML integration and training documentation
+│   └── CMakeLists.txt           # Build configuration with ML dependencies
 ├── docs/                        # Documentation and guides
 │   ├── getting_started.md       # Setup and first example
 │   ├── performance_guide.md     # Optimization best practices
@@ -88,43 +95,187 @@ git clone https://github.com/nvidia/nvidia-aerial-examples.git
 cd nvidia-aerial-examples
 ```
 
-### 2. Setup Dependencies
+### 2. Install NVIDIA Aerial Framework
 ```bash
-# Install CUDA Toolkit (if not already installed)
+# Download and install CUDA Toolkit (if not already installed)
 wget https://developer.download.nvidia.com/compute/cuda/12.3.2/local_installers/cuda_12.3.2_545.23.08_linux.run
 sudo sh cuda_12.3.2_545.23.08_linux.run
 
-# Install Aerial Framework (adjust path as needed)
-export AERIAL_FRAMEWORK_ROOT=/path/to/aerial-framework
+# Add CUDA to PATH (add to ~/.bashrc for persistence)
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+# Install additional CUDA libraries
+sudo apt-get update
+sudo apt-get install -y \
+    libcublas-dev \
+    libcurand-dev \
+    libcusolver-dev \
+    libcufft-dev \
+    libcudnn8-dev \
+    libnvinfer-dev \
+    libnvinfer-plugin-dev
+
+# Download NVIDIA Aerial Framework
+# Option 1: From NGC (NVIDIA GPU Cloud) - Recommended
+docker pull nvcr.io/nvidia/aerial/aerial-framework:latest
+
+# Extract framework from container
+docker create --name temp_aerial nvcr.io/nvidia/aerial/aerial-framework:latest
+docker cp temp_aerial:/opt/nvidia/aerial-framework ./aerial-framework
+docker rm temp_aerial
+
+# Option 2: Build from source (if you have access to source)
+# git clone <aerial-framework-repo-url> aerial-framework
+# cd aerial-framework
+# mkdir build && cd build
+# cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/nvidia/aerial-framework
+# make -j$(nproc)
+# sudo make install
+
+# Set Aerial Framework environment variables
+export AERIAL_FRAMEWORK_ROOT=$(pwd)/aerial-framework
+export AERIAL_FRAMEWORK_INCLUDE_DIRS=${AERIAL_FRAMEWORK_ROOT}/include
+export AERIAL_FRAMEWORK_LIBRARIES=${AERIAL_FRAMEWORK_ROOT}/lib
+
+# Add to ~/.bashrc for persistence
+echo "export AERIAL_FRAMEWORK_ROOT=${AERIAL_FRAMEWORK_ROOT}" >> ~/.bashrc
+echo "export AERIAL_FRAMEWORK_INCLUDE_DIRS=${AERIAL_FRAMEWORK_ROOT}/include" >> ~/.bashrc
+echo "export AERIAL_FRAMEWORK_LIBRARIES=${AERIAL_FRAMEWORK_ROOT}/lib" >> ~/.bashrc
+echo "export LD_LIBRARY_PATH=${AERIAL_FRAMEWORK_ROOT}/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
+
+# Verify installation
+ls -la ${AERIAL_FRAMEWORK_ROOT}/include/aerial
+ls -la ${AERIAL_FRAMEWORK_ROOT}/lib
 ```
 
-### 3. Build Examples
+### 3. Setup Additional Dependencies
+```bash
+# Install TensorRT for neural beamforming example
+wget https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/local_installers/nv-tensorrt-local-repo-ubuntu2004-8.6.1-cuda-12.0_1.0-1_amd64.deb
+sudo dpkg -i nv-tensorrt-local-repo-ubuntu2004-8.6.1-cuda-12.0_1.0-1_amd64.deb
+sudo cp /var/nv-tensorrt-local-repo-ubuntu2004-8.6.1-cuda-12.0/nv-tensorrt-local-42B2FC56-keyring.gpg /usr/share/keyrings/
+sudo apt-get update
+sudo apt-get install -y tensorrt
+
+# Install cuDNN for neural network operations
+sudo apt-get install -y libcudnn8-dev
+
+# Install Python dependencies for ML examples (optional)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install onnx onnxruntime-gpu tensorrt
+```
+
+### 4. Build Examples
 ```bash
 # Create build directory
 mkdir build && cd build
+
+# Verify Aerial Framework is properly installed
+if [ ! -d "${AERIAL_FRAMEWORK_ROOT}" ]; then
+    echo "Error: AERIAL_FRAMEWORK_ROOT not set or directory not found"
+    echo "Please set: export AERIAL_FRAMEWORK_ROOT=/path/to/aerial-framework"
+    exit 1
+fi
 
 # Configure with CMake
 cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CUDA_ARCHITECTURES="70;75;80;86;89;90" \
-  -DAERIAL_FRAMEWORK_ROOT=${AERIAL_FRAMEWORK_ROOT}
+  -DAERIAL_FRAMEWORK_ROOT=${AERIAL_FRAMEWORK_ROOT} \
+  -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
+  -DTENSORRT_ROOT=/usr/local/TensorRT \
+  -DCUDNN_ROOT=/usr/local/cudnn
 
 # Build all examples
 make -j$(nproc)
+
+# Verify build success
+echo "Build completed successfully!"
+echo "Available executables:"
+find . -name "*example" -type f -executable
 ```
 
-### 4. Run Examples
+### 5. Run Examples
 ```bash
-# Channel estimation example
+# Test basic functionality
 ./channel_estimation/channel_estimation_example
 
-# Modulation pipeline example
-./modulation_mapping/modulation_example
+# Run comprehensive examples
+./modulation_mapping/modulation_mapping_example
+./fft_processing/fft_processing_example  
+./mimo_detection/mimo_detection_example
+./neural_beamforming/neural_beamforming_ml_example
 
-# FFT processing example  
-./fft_processing/fft_example
+# Performance benchmarks
+./scripts/benchmark.sh --all-examples --iterations 1000
+```
 
-# MIMO detection example
+## 🔧 Installation Troubleshooting
+
+### Common Issues
+
+**1. Aerial Framework Not Found:**
+```bash
+# Verify paths
+echo $AERIAL_FRAMEWORK_ROOT
+ls -la $AERIAL_FRAMEWORK_ROOT/include/aerial
+ls -la $AERIAL_FRAMEWORK_ROOT/lib
+
+# If using NGC container method, ensure extraction worked
+docker images | grep aerial
+```
+
+**2. CUDA/TensorRT Issues:**
+```bash
+# Check CUDA installation
+nvcc --version
+nvidia-smi
+
+# Verify TensorRT
+dpkg -l | grep tensorrt
+pkg-config --modversion tensorrt
+```
+
+**3. Build Errors:**
+```bash
+# Clean rebuild
+rm -rf build && mkdir build && cd build
+
+# Debug build for more information
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON
+
+# Check specific dependencies
+cmake .. --debug-find
+```
+
+**4. Runtime Issues:**
+```bash
+# Check library paths
+echo $LD_LIBRARY_PATH
+ldd ./channel_estimation/channel_estimation_example
+
+# Verify GPU access
+nvidia-smi
+```
+
+## 🐳 Docker Alternative
+
+If you prefer containerized development:
+
+```bash
+# Use pre-built development container
+docker run --gpus all -it --rm \
+  -v $(pwd):/workspace \
+  nvcr.io/nvidia/aerial/aerial-framework:latest \
+  /bin/bash
+
+# Inside container
+cd /workspace
+mkdir build && cd build
+cmake .. -DAERIAL_FRAMEWORK_ROOT=/opt/nvidia/aerial-framework
+make -j$(nproc)
+```
 ./mimo_detection/mimo_example
 
 # Run with custom parameters
@@ -167,6 +318,14 @@ Multi-antenna signal detection algorithms with real-time streaming:
 - **Configurations**: 2x2, 4x4, 8x8 MIMO systems
 - **Features**: Batch processing, streaming support, SNR analysis
 - **Applications**: 5G NR PUSCH/PDSCH processing
+
+### Neural Beamforming Pipeline
+ML-based intelligent beamforming with complete training and deployment pipeline:
+- **Location**: `neural_beamforming/`
+- **Algorithms**: DNN/CNN beamforming, hybrid traditional+neural approaches
+- **ML Integration**: TensorRT optimization, FP32/FP16/INT8 precision support
+- **Features**: Online learning, training data generation, model export
+- **Applications**: Intelligent antenna array optimization for 5G/6G
 
 ## 🔧 Build Options
 

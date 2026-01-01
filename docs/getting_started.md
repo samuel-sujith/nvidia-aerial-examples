@@ -96,6 +96,10 @@ make -j$(nproc)
 ./mimo_detection/mimo_example                             # Simple example  
 ./mimo_detection/mimo_detection_example                   # Comprehensive example
 
+# Neural beamforming examples
+./neural_beamforming/neural_beamforming_example           # Simple ML integration
+./neural_beamforming/neural_beamforming_ml_example        # Complete ML pipeline
+
 # With custom parameters
 ./channel_estimation/channel_estimation_example \
   --num-rbs 100 \
@@ -117,6 +121,13 @@ make -j$(nproc)
   --rx-antennas 8 \
   --detector mmse \
   --benchmark
+
+./neural_beamforming/neural_beamforming_ml_example \
+  --antennas 64 \
+  --users 8 \
+  --mode neural-dnn \
+  --precision fp16 \
+  --comprehensive
 ```
 
 ## Understanding the Output
