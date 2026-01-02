@@ -27,6 +27,7 @@ set_property(TARGET channel_estimator PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 add_library(channel_est_pipeline SHARED
     channel_est_pipeline.cpp
     channel_est_pipeline.hpp
+    framework_stubs.cpp
 )
 
 target_link_libraries(channel_est_pipeline
