@@ -1,9 +1,9 @@
 #pragma once
 
 #include "fft_module.hpp"
-#include <framework/pipeline/pipeline_spec.hpp>
-#include <framework/pipeline/pipeline_factory.hpp>
-#include <framework/task/task_result.hpp>
+#include "pipeline/pipeline_spec.hpp"
+#include "pipeline/pipeline_factory.hpp"
+#include "task/task_result.hpp"
 #include <cufft.h>
 #include <vector>
 #include <memory>
