@@ -35,6 +35,7 @@ target_compile_options(modulation_pipeline PRIVATE
 # Example executables
 add_executable(modulation_example
     modulation_example.cpp
+    ../channel_estimation/framework_stubs.cpp
 )
 
 add_executable(modulation_mapping_example
