@@ -8,11 +8,21 @@
 #include <string>
 #include <map>
 
+namespace framework {
+namespace pipeline {
+struct PipelineStats {
+    std::size_t total_executions{0};
+    std::size_t failed_executions{0};
+    std::size_t successful_executions{0};
+};
+} // namespace pipeline
+} // namespace framework
+
 namespace modulation {
 
 /// Configuration for modulation pipeline
 struct ModulationPipelineConfig {
-    ModulationOrder modulation_order{ModulationOrder::QAM16};
+    ModulationScheme modulation_order{ModulationScheme::QAM16};
     size_t max_batch_size{1024};
     size_t max_symbols_per_batch{10000};
     bool enable_cuda_graphs{true};
@@ -52,7 +62,7 @@ struct ModulationPipelineStats {
 class ModulationPipeline {
 private:
     ModulationPipelineConfig config_;
-    std::unique_ptr<GPUModulator> modulator_;
+    std::unique_ptr<::aerial::examples::QAMModulator> modulator_;
     // Memory pool removed for simplification
     
     // CUDA resources
@@ -152,8 +162,8 @@ public:
     static std::unique_ptr<ModulationPipeline> create_from_spec(
         const aerial::pipeline::PipelineSpec& spec);
     
-    static ModulationPipelineConfig get_default_config(ModulationOrder order);
-    static ModulationPipelineConfig get_high_performance_config(ModulationOrder order);
+    static ModulationPipelineConfig get_default_config(ModulationScheme order);
+    static ModulationPipelineConfig get_high_performance_config(ModulationScheme order);
     static ModulationPipelineConfig get_low_latency_config(ModulationOrder order);
 };
 
