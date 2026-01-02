@@ -77,7 +77,11 @@ find_library(FRAMEWORK_TASK_LIB
 
 # Create imported target for Aerial Framework
 add_library(aerial_framework INTERFACE)
-target_include_directories(aerial_framework INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
+target_include_directories(aerial_framework INTERFACE 
+    ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
+    ${CUDAToolkit_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 target_link_libraries(aerial_framework INTERFACE 
     ${FRAMEWORK_PIPELINE_LIB}
     ${FRAMEWORK_TENSOR_LIB}
@@ -99,6 +103,7 @@ endif()
 
 # Global include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
 
 # Common utilities library
 add_subdirectory(common)
