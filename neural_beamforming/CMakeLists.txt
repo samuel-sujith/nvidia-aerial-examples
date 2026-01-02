@@ -2,7 +2,7 @@
 # Inherits standards and CUDA setup from parent CMakeLists.txt
 
 add_library(neural_beamforming_pipeline STATIC
-    neural_beamforming_pipeline.cpp
+    neural_beamforming_pipeline_simple.cpp
 )
 
 target_include_directories(neural_beamforming_pipeline
@@ -14,8 +14,6 @@ target_link_libraries(neural_beamforming_pipeline
         common_utils  # This now includes framework targets
         CUDA::cudart
         CUDA::cublas
-        CUDA::curand
-        CUDA::cusolver
 )
 
 # Properties inherited from parent - no need to set standards again
@@ -23,14 +21,11 @@ target_link_libraries(neural_beamforming_pipeline
 # Set CUDA properties for neural network operations
 set_property(TARGET neural_beamforming_pipeline PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
-# Add CUDA compilation flags for ML optimization
+# Add basic CUDA compilation flags
 target_compile_options(neural_beamforming_pipeline PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:
         --extended-lambda
-        --expt-relaxed-constexpr
-        -Xptxas -v
         --use_fast_math
-        -lineinfo
     >
 )
 

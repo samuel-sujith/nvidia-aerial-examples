@@ -4,12 +4,9 @@
 #include <chrono>
 #include <random>
 
-#include "neural_beamforming_pipeline.hpp"
-#include <aerial_framework/memory/memory_pool_factory.hpp>
-#include <aerial_framework/cuda_utils/cuda_context.hpp>
-#include <aerial_framework/tensor/tensor_factory.hpp>
+#include "neural_beamforming_pipeline_simple.hpp"
 
-using namespace aerial::examples::neural_beamforming;
+using namespace neural_beamforming;
 
 /**
  * @brief Simple neural beamforming example demonstrating basic ML integration
