@@ -22,7 +22,7 @@ namespace modulation {
 
 /// Configuration for modulation pipeline
 struct ModulationPipelineConfig {
-    ModulationScheme modulation_order{ModulationScheme::QAM16};
+    ModulationScheme modulation_order{ModulationScheme::QAM_16};
     size_t max_batch_size{1024};
     size_t max_symbols_per_batch{10000};
     bool enable_cuda_graphs{true};
@@ -117,22 +117,22 @@ public:
     ModulationPipelineStats get_modulation_stats() const { return stats_; }
     
     /// Process bits and generate modulated symbols
-    aerial::task::TaskResult modulate_bits(
+    ::framework::task::TaskResult modulate_bits(
         const std::vector<uint8_t>& input_bits,
         std::vector<std::complex<float>>& output_symbols,
-        const aerial::task::CancellationToken& token = {});
+        const ::framework::task::CancellationToken& token = {});
     
     /// Process symbols and generate demodulated bits  
-    aerial::task::TaskResult demodulate_symbols(
+    ::framework::task::TaskResult demodulate_symbols(
         const std::vector<std::complex<float>>& input_symbols,
         std::vector<uint8_t>& output_bits,
-        const aerial::task::CancellationToken& token = {});
+        const ::framework::task::CancellationToken& token = {});
     
     /// Batch processing for high throughput
-    aerial::task::TaskResult modulate_batch(
+    ::framework::task::TaskResult modulate_batch(
         const std::vector<std::vector<uint8_t>>& input_batches,
         std::vector<std::vector<std::complex<float>>>& output_batches,
-        const aerial::task::CancellationToken& token = {});
+        const ::framework::task::CancellationToken& token = {});
     
     /// Update configuration dynamically
     bool update_config(const ModulationPipelineConfig& new_config);
@@ -149,22 +149,22 @@ private:
     bool ensure_buffer_capacity(size_t required_bits, size_t required_symbols);
     bool create_cuda_graph(size_t num_bits);
     void update_performance_stats(uint64_t execution_time_us, size_t symbols_processed);
-    aerial::task::TaskResult validate_inputs(std::span<const aerial::tensor::TensorInfo> inputs) const;
-    aerial::task::TaskResult validate_outputs(std::span<aerial::tensor::TensorInfo> outputs) const;
+    ::framework::task::TaskResult validate_inputs(std::span<const ::framework::tensor::TensorInfo> inputs) const;
+    ::framework::task::TaskResult validate_outputs(std::span<::framework::tensor::TensorInfo> outputs) const;
 };
 
 /// Factory for creating modulation pipelines
 class ModulationPipelineFactory {
 public:
     static std::unique_ptr<ModulationPipeline> create_pipeline(
-        const ModulationPipelineConfig& config = {});
+        const ModulationPipelineConfig& config);
     
     static std::unique_ptr<ModulationPipeline> create_from_spec(
-        const aerial::pipeline::PipelineSpec& spec);
+        const ::framework::pipeline::PipelineSpec& spec);
     
     static ModulationPipelineConfig get_default_config(ModulationScheme order);
     static ModulationPipelineConfig get_high_performance_config(ModulationScheme order);
-    static ModulationPipelineConfig get_low_latency_config(ModulationOrder order);
+    static ModulationPipelineConfig get_low_latency_config(ModulationScheme order);
 };
 
 } // namespace modulation
