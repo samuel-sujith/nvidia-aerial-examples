@@ -1,9 +1,8 @@
 #pragma once
 
 #include "modulator.hpp"
-#include <aerial/pipeline/IPipeline.hpp>
-#include <aerial/memory/MemoryPool.hpp>
-#include <aerial/task/TaskResult.hpp>
+#include "pipeline/ipipeline.hpp"
+#include "task/task.hpp"
 #include <vector>
 #include <memory>
 #include <string>
@@ -50,11 +49,11 @@ struct ModulationPipelineStats {
 };
 
 /// High-performance modulation pipeline with GPU optimization
-class ModulationPipeline final : public aerial::pipeline::IPipeline {
+class ModulationPipeline {
 private:
     ModulationPipelineConfig config_;
     std::unique_ptr<GPUModulator> modulator_;
-    std::unique_ptr<aerial::memory::MemoryPool> memory_pool_;
+    // Memory pool removed for simplification
     
     // CUDA resources
     cudaStream_t streams_[2];
@@ -82,25 +81,27 @@ public:
     ~ModulationPipeline();
     
     // IPipeline interface
-    std::string_view get_pipeline_id() const override;
-    std::size_t get_num_external_inputs() const override { return 1; }
-    std::size_t get_num_external_outputs() const override { return 1; }
+    std::string_view get_pipeline_id() const;
+    std::size_t get_num_external_inputs() const { return 1; }
+    std::size_t get_num_external_outputs() const { return 1; }
     
-    aerial::task::TaskResult execute_pipeline(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
+    ::framework::task::TaskResult execute_pipeline(
+        std::span<const ::framework::tensor::TensorInfo> inputs,
+        std::span<::framework::tensor::TensorInfo> outputs,
+        const ::framework::task::CancellationToken& token
+    );
     
-    aerial::task::TaskResult execute_pipeline_graph(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
+    ::framework::task::TaskResult execute_pipeline_graph(
+        std::span<const ::framework::tensor::TensorInfo> inputs,
+        std::span<::framework::tensor::TensorInfo> outputs,
+        const ::framework::task::CancellationToken& token
+    );
     
-    bool setup(const aerial::pipeline::PipelineSpec& spec) override;
-    void teardown() override;
-    bool is_ready() const override { return is_initialized_; }
+    bool setup(const ::framework::pipeline::PipelineSpec& spec);
+    void teardown();
+    bool is_ready() const { return is_initialized_; }
     
-    aerial::pipeline::PipelineStats get_stats() const override;
+    ::framework::pipeline::PipelineStats get_stats() const;
     
     // Modulation-specific interface
     ModulationPipelineStats get_modulation_stats() const { return stats_; }
