@@ -31,7 +31,12 @@ find_package(CUDAToolkit REQUIRED)
 message(STATUS "Configuring external dependencies...")
 
 # Add NamedType (check if available, otherwise create stub)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include")
+if(DEFINED NAMEDTYPE_INCLUDE_DIR)
+    # User provided NAMEDTYPE_INCLUDE_DIR
+    add_library(NamedType INTERFACE)
+    target_include_directories(NamedType INTERFACE ${NAMEDTYPE_INCLUDE_DIR})
+    message(STATUS "Using user-provided NamedType library at ${NAMEDTYPE_INCLUDE_DIR}")
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include")
     add_library(NamedType INTERFACE)
     target_include_directories(NamedType INTERFACE 
         ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
@@ -54,7 +59,14 @@ else()
 endif()
 
 # Add Quill (check if available, otherwise create stub)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
+if(DEFINED QUILL_INCLUDE_DIR)
+    # User provided QUILL_INCLUDE_DIR
+    add_library(quill_external INTERFACE)
+    target_include_directories(quill_external INTERFACE ${QUILL_INCLUDE_DIR})
+    add_library(quill::quill ALIAS quill_external)
+    set(QUILL_TARGET quill_external)
+    message(STATUS "Using user-provided Quill library at ${QUILL_INCLUDE_DIR}")
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
     option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
     option(QUILL_BUILD_TESTS "Build tests" OFF) 
     option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
