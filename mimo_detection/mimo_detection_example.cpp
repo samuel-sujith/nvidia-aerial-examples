@@ -250,22 +250,14 @@ int run_mimo_example(const ExampleConfig& config) {
         perf.start_measurement("Pipeline Creation");
         
         MIMOPipelineConfig pipeline_config;
-        pipeline_config.num_tx_antennas = config.num_tx;
-        pipeline_config.num_rx_antennas = config.num_rx;
+        pipeline_config.max_tx_antennas = config.num_tx;
+        pipeline_config.max_rx_antennas = config.num_rx;
         pipeline_config.max_batch_size = 1024;
         pipeline_config.enable_cuda_graphs = config.use_cuda_graphs;
-        pipeline_config.supported_algorithms = {config.algorithm};
         
         auto pipeline = MIMOPipelineFactory::create_pipeline(pipeline_config);
         
         perf.end_measurement("Pipeline Creation");
-        
-        // Step 2: Setup pipeline
-        aerial::pipeline::PipelineSpec spec;
-        if (!pipeline->setup(spec)) {
-            std::cerr << "Failed to setup MIMO pipeline\n";
-            return 1;
-        }
         
         // Step 3: Generate test data
         perf.start_measurement("Data Generation");
@@ -320,25 +312,8 @@ int run_mimo_example(const ExampleConfig& config) {
         
         perf.end_measurement("GPU Memory Setup");
         
-        // Step 5: Setup tensor info objects
-        std::vector<tensor::TensorInfo> inputs(2);
-        std::vector<tensor::TensorInfo> outputs(1);
-        
-        inputs[0].set_data(d_rx_signals);
-        inputs[0].set_dimensions({config.num_symbols, config.num_rx});
-        inputs[0].set_element_type(tensor::ElementType::COMPLEX_FLOAT32);
-        
-        inputs[1].set_data(d_channel_matrix);
-        inputs[1].set_dimensions({config.num_rx, config.num_tx});
-        inputs[1].set_element_type(tensor::ElementType::COMPLEX_FLOAT32);
-        
-        outputs[0].set_data(d_detected_symbols);
-        outputs[0].set_dimensions({config.num_symbols, config.num_tx});
-        outputs[0].set_element_type(tensor::ElementType::COMPLEX_FLOAT32);
-        
-        // Step 6: Warm-up execution
-        std::cout << "Performing warm-up execution...\n";
-        task::CancellationToken token;
+        // Step 5: Setup for execution
+        framework::task::CancellationToken token;
         
         std::vector<std::complex<float>> detected_symbols;
         auto result = pipeline->detect_symbols(rx_signals, channel_model.channel_matrix, 
@@ -392,16 +367,10 @@ int run_mimo_example(const ExampleConfig& config) {
         for (int i = 0; i < config.num_iterations; ++i) {
             detected_symbols.clear();
             
-            if (config.use_cuda_graphs && i > 0) {
-                perf.start_measurement("Pipeline Execution (Graph)");
-                result = pipeline->execute_pipeline_graph(inputs, outputs, token);
-                perf.end_measurement("Pipeline Execution (Graph)");
-            } else {
-                perf.start_measurement("Pipeline Execution (Stream)");
-                result = pipeline->detect_symbols(rx_signals, channel_model.channel_matrix, 
-                                                detected_symbols, config.algorithm);
-                perf.end_measurement("Pipeline Execution (Stream)");
-            }
+            perf.start_measurement("Pipeline Execution");
+            result = pipeline->detect_symbols(rx_signals, channel_model.channel_matrix, 
+                                            detected_symbols, config.algorithm, token);
+            perf.end_measurement("Pipeline Execution");
             
             if (!result.is_success()) {
                 std::cerr << "Execution " << i << " failed: " << result.message << "\n";
