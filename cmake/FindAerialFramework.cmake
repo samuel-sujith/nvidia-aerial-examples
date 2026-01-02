@@ -19,13 +19,17 @@ endif()
 
 # Look for Quill headers in the framework installation
 set(FRAMEWORK_QUILL_INCLUDE "")
-if(EXISTS "${AERIAL_FRAMEWORK_ROOT}/include/quill")
-    set(FRAMEWORK_QUILL_INCLUDE "${AERIAL_FRAMEWORK_ROOT}/include")
-    message(STATUS "Found Quill headers in framework installation")
-elseif(EXISTS "${AERIAL_FRAMEWORK_ROOT}/external/quill/include")
-    set(FRAMEWORK_QUILL_INCLUDE "${AERIAL_FRAMEWORK_ROOT}/external/quill/include")
-    message(STATUS "Found external Quill headers in framework")
-endif()
+foreach(QUILL_SEARCH_PATH 
+        "${AERIAL_FRAMEWORK_ROOT}/include"
+        "${AERIAL_FRAMEWORK_ROOT}/external/quill/include" 
+        "${AERIAL_FRAMEWORK_ROOT}/../external/quill/include"
+        "${AERIAL_FRAMEWORK_ROOT}/../../external/quill/include")
+    if(EXISTS "${QUILL_SEARCH_PATH}/quill/DeferredFormatCodec.h")
+        set(FRAMEWORK_QUILL_INCLUDE "${QUILL_SEARCH_PATH}")
+        message(STATUS "Found framework's Quill headers at: ${QUILL_SEARCH_PATH}")
+        break()
+    endif()
+endforeach()
 
 # Aerial Framework include directories
 set(AERIAL_FRAMEWORK_INCLUDE_DIRS
