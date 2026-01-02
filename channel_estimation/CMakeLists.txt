@@ -1,47 +1,6 @@
 #
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-
-cmake_minimum_required(VERSION 3.20)
-
-project(ChannelEstimationExample 
-    VERSION 1.0.0
-    DESCRIPTION "Channel Estimation Pipeline Example for Aerial Framework"
-    LANGUAGES CXX CUDA
-)
-
-# Set C++ and CUDA standards
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
-# Find required packages
-find_package(CUDAToolkit REQUIRED)
-
-# Include framework headers (adjust paths as needed)
-set(FRAMEWORK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-include_directories(
-    ${FRAMEWORK_ROOT}/task/lib/include
-    ${FRAMEWORK_ROOT}/tensor/lib/include  
-    ${FRAMEWORK_ROOT}/pipeline/lib/include
-    ${FRAMEWORK_ROOT}/memory/lib/include
-    ${FRAMEWORK_ROOT}/utils/lib/include
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# Compiler-specific options
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3")
-endif()
-
-# CUDA compiler options
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 -use_fast_math")
-set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90") # Support multiple GPU architectures
-
-# Define CUDA separable compilation for device code
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+# Remove project-specific settings - inherit from parent
+# The parent CMakeLists.txt already sets these properly
 
 # Channel Estimator Library
 add_library(channel_estimator SHARED
@@ -49,7 +8,9 @@ add_library(channel_estimator SHARED
     channel_estimator.hpp
 )
 
+# Use common utilities and framework targets
 target_link_libraries(channel_estimator
+    common_utils
     CUDA::cudart
     CUDA::cublas  # If using cuBLAS for MMSE
     CUDA::cufft   # If using FFT for frequency domain operations
@@ -70,11 +31,8 @@ add_library(channel_est_pipeline SHARED
 
 target_link_libraries(channel_est_pipeline
     channel_estimator
-    # Link to framework libraries (adjust as needed)
-    # framework_task
-    # framework_tensor
-    # framework_pipeline
-    # framework_memory
+    common_utils
+    # Framework libraries will be linked via common_utils
 )
 
 target_include_directories(channel_est_pipeline PUBLIC

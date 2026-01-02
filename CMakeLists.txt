@@ -1,17 +1,24 @@
 # NVIDIA Aerial Framework Examples
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.23) # Align with aerial-framework requirement
+
+# Only set the cxx_standard if it is not set by someone else
+if(NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 20)
+endif()
+
+# strongly encouraged to enable this globally to avoid conflicts between -Wpedantic being enabled
+# and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable position-independent code globally for all static libraries Required for CUDA device
+# linking and potential shared library usage
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 project(AerialExamples
     VERSION 1.0.0
     DESCRIPTION "NVIDIA Aerial Framework GPU-Accelerated 5G Signal Processing Examples"
-    LANGUAGES CXX CUDA
+    LANGUAGES CXX C ASM CUDA
 )
-
-# C++20 and CUDA requirements
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Build configuration
 if(NOT CMAKE_BUILD_TYPE)
@@ -24,174 +31,116 @@ option(BUILD_BENCHMARKS "Build benchmark executables" ON)
 option(ENABLE_PROFILING "Enable profiling support" OFF)
 option(ENABLE_DEBUG_INFO "Enable debug information" OFF)
 
+# Set default CPM source cache if not already configured 
+if(NOT DEFINED CPM_SOURCE_CACHE AND NOT DEFINED ENV{CPM_SOURCE_CACHE})
+    set(ENV{CPM_SOURCE_CACHE} "$ENV{HOME}/.cache/CPM")
+    message(STATUS "CPM source cache: $ENV{HOME}/.cache/CPM (default)")
+else()
+    if(DEFINED CPM_SOURCE_CACHE)
+        message(STATUS "CPM source cache: ${CPM_SOURCE_CACHE} (CMake variable)")
+    else()
+        message(STATUS "CPM source cache: $ENV{CPM_SOURCE_CACHE} (environment variable)")
+    endif()
+endif()
+
+# Download CPM.cmake
+file(DOWNLOAD
+    https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.2/CPM.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake
+    EXPECTED_HASH SHA256=c8cdc32c03816538ce22781ed72964dc864b2a34a310d3b7104812a5ca2d835d
+)
+include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
+
 # Find required packages
 find_package(CUDAToolkit REQUIRED)
 
-# External dependencies - handle missing gracefully
+# External dependencies - using CPM for proper management
 message(STATUS "Configuring external dependencies...")
 
-# Add NamedType (check if available, otherwise create stub)
-if(DEFINED NAMEDTYPE_INCLUDE_DIR)
-    # User provided NAMEDTYPE_INCLUDE_DIR
-    add_library(NamedType INTERFACE)
-    target_include_directories(NamedType INTERFACE ${NAMEDTYPE_INCLUDE_DIR})
-    message(STATUS "Using user-provided NamedType library at ${NAMEDTYPE_INCLUDE_DIR}")
-elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include")
-    add_library(NamedType INTERFACE)
-    target_include_directories(NamedType INTERFACE 
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
+# Add NamedType using CPM
+if(NOT TARGET NamedType)
+    CPMAddPackage(
+        NAME NamedType
+        GITHUB_REPOSITORY joboccara/NamedType
+        GIT_TAG v1.1.0
+        OPTIONS "ENABLE_TEST OFF"
+        SYSTEM YES
     )
-    set(NAMEDTYPE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include)
-    message(STATUS "Using external NamedType library")
+endif()
+
+# Add Quill using CPM (proper dependency management)
+if(NOT TARGET quill::quill)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
+        # Use local external/quill if available
+        option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
+        option(QUILL_BUILD_TESTS "Build tests" OFF) 
+        option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
+        add_subdirectory(external/quill)
+        message(STATUS "Using local external Quill library")
+    else()
+        # Download via CPM
+        CPMAddPackage(
+            NAME quill
+            GITHUB_REPOSITORY odygrd/quill
+            GIT_TAG v8.1.0
+            OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
+            SYSTEM YES
+        )
+        message(STATUS "Downloaded Quill via CPM")
+    endif()
+endif()
+
+# Try to find installed Aerial Framework first
+find_package(framework QUIET)
+
+if(framework_FOUND)
+    message(STATUS "Found installed Aerial Framework")
+    set(AERIAL_FRAMEWORK_TARGETS framework::pipeline framework::tensor framework::utils framework::tensorrt framework::task framework::memory framework::log framework::net)
 else()
-    # Create minimal NamedType stub
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/NamedType")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/NamedType/named_type.hpp"
-        "#pragma once\n"
-        "namespace fluent {\n"
-        "template<typename T, typename Parameter> using NamedType = T;\n"
-        "}\n"
-    )
-    add_library(NamedType INTERFACE)
-    target_include_directories(NamedType INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
-    set(NAMEDTYPE_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
-    message(STATUS "Using NamedType stub")
+    # Fallback to manual discovery
+    message(STATUS "Aerial Framework not found via find_package, using manual discovery")
+    
+    # Set default Aerial Framework path if not provided
+    if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
+        # Try common installation locations
+        foreach(POTENTIAL_PATH 
+                "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework/out/install/clang-release"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework/out/install/gcc-release"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework-prod"
+                "/usr/local"
+                "/opt/nvidia/aerial-framework")
+            if(EXISTS "${POTENTIAL_PATH}/include/pipeline" OR EXISTS "${POTENTIAL_PATH}/include/framework/pipeline")
+                set(AERIAL_FRAMEWORK_ROOT "${POTENTIAL_PATH}")
+                message(STATUS "Found Aerial Framework at: ${AERIAL_FRAMEWORK_ROOT}")
+                break()
+            endif()
+        endforeach()
+    endif()
+    
+    if(NOT AERIAL_FRAMEWORK_ROOT)
+        message(FATAL_ERROR "Aerial Framework not found. Please set AERIAL_FRAMEWORK_ROOT or install framework package")
+    endif()
+    
+    # Create imported targets for manual discovery
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindAerialFramework.cmake")
 endif()
 
-# Add Quill (check if available, otherwise create stub)
-if(DEFINED QUILL_INCLUDE_DIR)
-    # User provided QUILL_INCLUDE_DIR
-    add_library(quill_external INTERFACE)
-    target_include_directories(quill_external INTERFACE ${QUILL_INCLUDE_DIR})
-    add_library(quill::quill ALIAS quill_external)
-    set(QUILL_TARGET quill_external)
-    message(STATUS "Using user-provided Quill library at ${QUILL_INCLUDE_DIR}")
-elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
-    option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
-    option(QUILL_BUILD_TESTS "Build tests" OFF) 
-    option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
-    add_subdirectory(external/quill)
-    set(QUILL_TARGET quill::quill)
-    set(QUILL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/include)
-    message(STATUS "Using external Quill library")
-else()
-    # Create comprehensive Quill stub
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/Backend.h"
-        "#pragma once\n"
-        "namespace quill { class Backend { public: static void start() {} static void stop() {} }; }\n"
-    )
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/LogMacros.h" 
-        "#pragma once\n"
-        "#define QUILL_LOG_INFO(...) do {} while(0)\n"
-        "#define QUILL_LOG_ERROR(...) do {} while(0)\n"
-        "#define QUILL_LOG_WARNING(...) do {} while(0)\n"
-        "#define QUILL_LOG_DEBUG(...) do {} while(0)\n"
-    )
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/DeferredFormatCodec.h"
-        "#pragma once\n"
-        "namespace quill { template<typename T> struct DeferredFormatCodec {}; }\n"
-    )
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/DirectFormatCodec.h"
-        "#pragma once\n"
-        "namespace quill { template<typename T> struct DirectFormatCodec {}; }\n"
-    )
-    add_library(quill_stub INTERFACE)
-    target_include_directories(quill_stub INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
-    add_library(quill::quill ALIAS quill_stub)
-    set(QUILL_TARGET quill_stub)
-    set(QUILL_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
-    message(STATUS "Using Quill stub")
-endif()
-
-# Global include directories - must be set before any subdirectories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
-include_directories(${CUDAToolkit_INCLUDE_DIRS})
-include_directories(${NAMEDTYPE_INCLUDE_DIR})
-include_directories(${QUILL_INCLUDE_DIR})
-
-# Set default Aerial Framework path if not provided
-if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
-    set(AERIAL_FRAMEWORK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework-prod")
-endif()
-
-# Aerial Framework include directories
-set(AERIAL_FRAMEWORK_INCLUDE_DIRS
-    ${AERIAL_FRAMEWORK_ROOT}/include
-    ${AERIAL_FRAMEWORK_ROOT}/include/pipeline
-    ${AERIAL_FRAMEWORK_ROOT}/include/tensor
-    ${AERIAL_FRAMEWORK_ROOT}/include/task
-    ${AERIAL_FRAMEWORK_ROOT}/include/memory
-    ${AERIAL_FRAMEWORK_ROOT}/include/utils
-    ${AERIAL_FRAMEWORK_ROOT}/include/log
-    ${AERIAL_FRAMEWORK_ROOT}/include/wise_enum
-    ${NAMEDTYPE_INCLUDE_DIR}
-    ${QUILL_INCLUDE_DIR}
-)
-
-# Find framework libraries
-find_library(FRAMEWORK_PIPELINE_LIB
-    NAMES framework-pipeline
-    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
-    REQUIRED
-)
-
-find_library(FRAMEWORK_TENSOR_LIB
-    NAMES framework-tensor
-    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
-    REQUIRED
-)
-
-find_library(FRAMEWORK_UTILS_LIB
-    NAMES framework-utils
-    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
-    REQUIRED
-)
-
-find_library(FRAMEWORK_TENSORRT_LIB
-    NAMES framework-tensorrt
-    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
-    REQUIRED
-)
-
-find_library(FRAMEWORK_TASK_LIB
-    NAMES task
-    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
-    REQUIRED
-)
-
-# Create imported target for Aerial Framework
-add_library(aerial_framework INTERFACE)
-target_include_directories(aerial_framework INTERFACE 
-    ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
-    ${CUDAToolkit_INCLUDE_DIRS}
-    ${NAMEDTYPE_INCLUDE_DIR}
-    ${QUILL_INCLUDE_DIR}
-)
-target_link_libraries(aerial_framework INTERFACE 
-    ${FRAMEWORK_PIPELINE_LIB}
-    ${FRAMEWORK_TENSOR_LIB}
-    ${FRAMEWORK_UTILS_LIB}
-    ${FRAMEWORK_TENSORRT_LIB}
-    ${FRAMEWORK_TASK_LIB}
-    NamedType
-    ${QUILL_TARGET}
-)
-
-# Compiler flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
-set(CMAKE_CUDA_FLAGS_RELEASE "-O3 --use_fast_math -DNDEBUG")
-set(CMAKE_CUDA_FLAGS_DEBUG "-g -G -O0 -DDEBUG")
-
-# Add include directories to compiler flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${NAMEDTYPE_INCLUDE_DIR} -I${QUILL_INCLUDE_DIR}")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${NAMEDTYPE_INCLUDE_DIR} -I${QUILL_INCLUDE_DIR}")
-
-# CUDA architecture configuration
+# CUDA architecture configuration (align with aerial-framework)
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90")
+    set(CMAKE_CUDA_ARCHITECTURES "native")
 endif()
+
+# Compiler flags (align with aerial-framework approach)
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_CUDA_FLAGS_RELEASE "-O3 --use_fast_math -DNDEBUG")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug") 
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
+    set(CMAKE_CUDA_FLAGS_DEBUG "-g -G -O0")
+endif()
+
+# Global include directories
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
 
 # Common utilities library
 add_subdirectory(common)
@@ -203,14 +152,27 @@ add_subdirectory(fft_processing)
 add_subdirectory(mimo_detection)
 add_subdirectory(neural_beamforming)
 
-# Tests
+# Tests (use CPM for GTest like aerial-framework)
 if(BUILD_TESTS)
     enable_testing()
+    
+    # Try to find installed GTest first
     find_package(GTest QUIET)
-    if(GTest_FOUND)
+    if(NOT GTest_FOUND)
+        # Download via CPM like aerial-framework does
+        CPMAddPackage(
+            NAME googletest
+            GITHUB_REPOSITORY google/googletest
+            GIT_TAG v1.15.2
+            OPTIONS "INSTALL_GTEST OFF" "gtest_force_shared_crt"
+            SYSTEM YES
+        )
+    endif()
+    
+    if(TARGET GTest::gtest_main OR TARGET gtest_main)
         add_subdirectory(tests)
     else()
-        message(WARNING "GTest not found, skipping unit tests")
+        message(WARNING "GTest not available, skipping unit tests")
     endif()
 endif()
 

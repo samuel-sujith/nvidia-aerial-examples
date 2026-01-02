@@ -1,8 +1,5 @@
 # FFT Processing Pipeline Example
-cmake_minimum_required(VERSION 3.20)
-
-# Find required packages
-find_package(CUDAToolkit REQUIRED)
+# Inherits standards and CUDA setup from parent CMakeLists.txt
 
 # FFT pipeline library
 add_library(fft_pipeline
@@ -14,21 +11,16 @@ target_link_libraries(fft_pipeline
         CUDA::cudart
         CUDA::cufft
         CUDA::curand
-        aerial_framework
-        common_utils
+        common_utils  # This now includes framework targets
 )
 
 target_include_directories(fft_pipeline
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
 )
 
+# Inherit properties from parent - no need to set standards again
 set_target_properties(fft_pipeline PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-    CUDA_STANDARD 17
-    CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION ON
 )
 
