@@ -80,10 +80,10 @@ __global__ void qam_modulation_kernel(ModulationDescriptor* desc) {
     // Extract bits for this symbol based on modulation scheme
     int bits_per_symbol;
     switch (desc->params->scheme) {
-        case ModulationScheme::QPSK:    bits_per_symbol = 2; break;
-        case ModulationScheme::QAM_16:  bits_per_symbol = 4; break;
-        case ModulationScheme::QAM_64:  bits_per_symbol = 6; break;
-        case ModulationScheme::QAM_256: bits_per_symbol = 8; break;
+        case ::ModulationScheme::QPSK:    bits_per_symbol = 2; break;
+        case ::ModulationScheme::QAM_16:  bits_per_symbol = 4; break;
+        case ::ModulationScheme::QAM_64:  bits_per_symbol = 6; break;
+        case ::ModulationScheme::QAM_256: bits_per_symbol = 8; break;
         default: return;
     }
     
@@ -103,16 +103,16 @@ __global__ void qam_modulation_kernel(ModulationDescriptor* desc) {
     // Modulate based on scheme
     cuComplex symbol;
     switch (desc->params->scheme) {
-        case ModulationScheme::QPSK:
+        case ::ModulationScheme::QPSK:
             symbol = modulate_qpsk(symbol_bits);
             break;
-        case ModulationScheme::QAM_16:
+        case ::ModulationScheme::QAM_16:
             symbol = modulate_qam16(symbol_bits);
             break;
-        case ModulationScheme::QAM_64:
+        case ::ModulationScheme::QAM_64:
             symbol = modulate_qam64(symbol_bits);
             break;
-        case ModulationScheme::QAM_256:
+        case ::ModulationScheme::QAM_256:
             symbol = modulate_qam256(symbol_bits);
             break;
     }
@@ -128,7 +128,7 @@ namespace aerial::examples {
 
 QAMModulator::QAMModulator(
     const std::string& module_id,
-    const ModulationParams& params
+    const ::ModulationParams& params
 ) : module_id_(module_id), params_(params), d_descriptor_(nullptr) {
     allocate_gpu_memory();
 }
@@ -138,7 +138,7 @@ QAMModulator::~QAMModulator() {
 }
 
 void QAMModulator::allocate_gpu_memory() {
-    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(ModulationDescriptor));
+    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(::ModulationDescriptor));
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate GPU memory for modulation descriptor");
     }

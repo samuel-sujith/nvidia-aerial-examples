@@ -16,8 +16,6 @@
 #include "task/task.hpp"
 // #include "pipeline/imodule.hpp"  // Not available in current framework
 
-namespace aerial::examples {
-
 /// QAM modulation schemes supported
 enum class ModulationScheme {
     QPSK,      ///< Quadrature Phase Shift Keying
@@ -38,16 +36,21 @@ struct ModulationParams {
 struct ModulationDescriptor {
     const uint32_t* input_bits;        ///< Input bit stream
     cuComplex* output_symbols;         ///< Output modulated symbols
-    ModulationParams* params;          ///< Modulation parameters
+    const ModulationParams* params;   ///< Modulation parameters
     int total_symbols;                 ///< Total number of symbols
 };
+
+/// CUDA kernel declaration
+__global__ void qam_modulation_kernel(ModulationDescriptor* desc);
+
+namespace aerial::examples {
 
 /// QAM modulator module
 class QAMModulator {
 public:
     explicit QAMModulator(
         const std::string& module_id,
-        const ModulationParams& params
+        const ::ModulationParams& params
     );
     
     ~QAMModulator() = default;
@@ -66,11 +69,11 @@ public:
 
 private:
     std::string module_id_;
-    ModulationParams params_;
+    ::ModulationParams params_;
     
     // GPU resources
-    ModulationDescriptor* d_descriptor_;
-    ModulationDescriptor h_descriptor_;
+    ::ModulationDescriptor* d_descriptor_;
+    ::ModulationDescriptor h_descriptor_;
     
     void allocate_gpu_memory();
     void deallocate_gpu_memory();
@@ -79,8 +82,5 @@ private:
 };
 
 } // namespace aerial::examples
-
-/// CUDA kernel declarations (must be outside namespace for CUDA compilation)
-__global__ void qam_modulation_kernel(ModulationDescriptor* desc);
 
 #endif // AERIAL_EXAMPLES_MODULATOR_HPP
