@@ -48,7 +48,6 @@ target_link_libraries(fft_example
         fft_pipeline
         CUDA::cudart
         CUDA::cufft
-        aerial_framework
         common_utils
 )
 
@@ -57,7 +56,6 @@ target_link_libraries(fft_processing_example
         fft_pipeline
         CUDA::cudart
         CUDA::cufft
-        aerial_framework
         common_utils
 )
 
