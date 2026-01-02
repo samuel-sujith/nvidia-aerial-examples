@@ -40,6 +40,7 @@ add_executable(modulation_example
 
 add_executable(modulation_mapping_example
     modulation_mapping_example.cpp
+    ../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(modulation_example
