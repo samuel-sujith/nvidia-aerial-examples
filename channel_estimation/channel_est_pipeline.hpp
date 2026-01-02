@@ -17,9 +17,23 @@
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "task/task.hpp"
-#include "memory/memory_pool.hpp"
+// #include "memory/memory_pool.hpp"  // Not available in current framework
 
 #include "channel_estimator.hpp"
+
+// Simple memory pool stub
+namespace framework {
+namespace memory {
+class MemoryPool {
+public:
+    explicit MemoryPool(std::size_t pool_size) : pool_size_(pool_size) {}
+    ~MemoryPool() = default;
+    std::size_t size() const { return pool_size_; }
+private:
+    std::size_t pool_size_;
+};
+} // namespace memory
+} // namespace framework
 
 namespace framework::examples {
 
@@ -95,7 +109,7 @@ private:
     std::unique_ptr<ChannelEstimator> channel_estimator_;
     
     // Memory management
-    std::unique_ptr<memory::MemoryPool> memory_pool_;
+    std::unique_ptr<framework::memory::MemoryPool> memory_pool_;
     
     // CUDA graph support
     cudaGraph_t cuda_graph_{};
@@ -164,7 +178,7 @@ namespace tensor_utils {
 /// Allocate GPU tensor for complex data
 tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
-    memory::MemoryPool& pool
+    framework::memory::MemoryPool& pool
 );
 
 /// Copy tensor data asynchronously
