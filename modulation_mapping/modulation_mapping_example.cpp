@@ -151,7 +151,7 @@ int run_modulation_example() {
         std::vector<std::complex<float>> output_symbols;
         
         perf.start_measurement("Modulation Execution");
-        auto result = pipeline->modulate_bits(input_bits, output_symbols, ModulationScheme::QAM_16);
+        auto result = pipeline->modulate_bits(input_bits, output_symbols);
         perf.end_measurement("Modulation Execution");
         
         if (!result.is_success()) {
