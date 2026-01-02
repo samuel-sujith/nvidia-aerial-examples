@@ -23,6 +23,7 @@
 
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#include <map>
 
 #include "channel_estimator.hpp"
 #include "channel_est_pipeline.hpp"
@@ -30,9 +31,9 @@
 #include "pipeline/types.hpp"
 
 using namespace framework::examples;
-using framework::pipeline::PipelineSpec;
-using framework::tensor::TensorInfo;
-using framework::task::CancellationToken;
+using ::framework::pipeline::PipelineSpec;
+using ::framework::tensor::TensorInfo;
+using ::framework::task::CancellationToken;
 
 /**
  * Generate synthetic 5G NR pilot symbols for testing
