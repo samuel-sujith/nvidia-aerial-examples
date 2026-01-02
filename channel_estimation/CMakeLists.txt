@@ -140,9 +140,17 @@ install(FILES
     DESTINATION include/aerial/examples/channel_estimation
 )
 
-install(TARGETS channel_estimation_example channel_estimation_benchmark
+# Install executables
+install(TARGETS channel_estimation_example
     RUNTIME DESTINATION bin
 )
+
+# Install benchmark if it was built
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/channel_estimation_benchmark.cpp")
+    install(TARGETS channel_estimation_benchmark
+        RUNTIME DESTINATION bin
+    )
+endif()
 
 # Documentation
 option(BUILD_DOCS "Build documentation" OFF)
