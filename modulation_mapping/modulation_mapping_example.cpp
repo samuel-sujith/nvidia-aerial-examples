@@ -30,7 +30,7 @@
 #include "tensor/tensor_info.hpp"
 #include "pipeline/types.hpp"
 
-using namespace modulation_mapping;
+using namespace modulation;
 
 /**
  * Generate synthetic bit streams for testing
@@ -118,7 +118,7 @@ int run_modulation_example() {
         perf.start_measurement("Pipeline Creation");
         
         ModulationPipelineConfig pipeline_config;
-        pipeline_config.modulation_orders = {ModulationOrder::QAM16};
+        pipeline_config.modulation_order = ModulationScheme::QAM_16;
         pipeline_config.max_batch_size = 1024;
         pipeline_config.enable_cuda_graphs = true;
         
@@ -127,7 +127,7 @@ int run_modulation_example() {
         perf.end_measurement("Pipeline Creation");
         
         // Step 2: Setup pipeline
-        aerial::pipeline::PipelineSpec spec;
+        ::framework::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "Failed to setup modulation pipeline\n";
             return 1;
