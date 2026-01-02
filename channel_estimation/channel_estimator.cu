@@ -172,9 +172,13 @@ __global__ void channel_estimation_kernel(ChannelEstDescriptor* desc) {
 }
 
 } // namespace examples  
+} // namespace examples
 } // namespace framework
 
 // Class member function implementations
+namespace framework {
+namespace examples {
+
 ChannelEstimator::ChannelEstimator(
     const std::string& module_id,
     const ChannelEstParams& params
@@ -357,3 +361,6 @@ bool ChannelEstimator::is_output_ready(std::size_t output_index) const {
     // In real implementation, check if output buffer is allocated
     return output_index == 0; // channel_estimates
 }
+
+} // namespace examples
+} // namespace framework
