@@ -27,6 +27,19 @@ option(ENABLE_DEBUG_INFO "Enable debug information" OFF)
 # Find required packages
 find_package(CUDAToolkit REQUIRED)
 
+# External dependencies
+set(EXTERNAL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external)
+
+# Add NamedType (header-only library)
+add_library(NamedType INTERFACE)
+target_include_directories(NamedType INTERFACE ${EXTERNAL_DIR}/NamedType/include)
+
+# Add Quill logging library
+option(QUILL_BUILD_EXAMPLES "" OFF)
+option(QUILL_BUILD_TESTS "" OFF) 
+option(QUILL_BUILD_BENCHMARKS "" OFF)
+add_subdirectory(${EXTERNAL_DIR}/quill)
+
 # Set default Aerial Framework path if not provided
 if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
     set(AERIAL_FRAMEWORK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework-prod")
@@ -80,7 +93,8 @@ add_library(aerial_framework INTERFACE)
 target_include_directories(aerial_framework INTERFACE 
     ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
     ${CUDAToolkit_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${EXTERNAL_DIR}/NamedType/include
+    ${EXTERNAL_DIR}/quill/include
 )
 target_link_libraries(aerial_framework INTERFACE 
     ${FRAMEWORK_PIPELINE_LIB}
@@ -88,6 +102,8 @@ target_link_libraries(aerial_framework INTERFACE
     ${FRAMEWORK_UTILS_LIB}
     ${FRAMEWORK_TENSORRT_LIB}
     ${FRAMEWORK_TASK_LIB}
+    NamedType
+    quill::quill
 )
 
 # Compiler flags
