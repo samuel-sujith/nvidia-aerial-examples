@@ -38,8 +38,7 @@ add_executable(mimo_example
 )
 
 add_executable(mimo_detection_example
-    mimo_detection_example.cpp
-)
+    mimo_detection_example.cpp    framework_stubs.cpp)
 
 target_link_libraries(mimo_example
     PRIVATE
