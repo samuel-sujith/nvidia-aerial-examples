@@ -28,17 +28,21 @@ option(ENABLE_DEBUG_INFO "Enable debug information" OFF)
 find_package(CUDAToolkit REQUIRED)
 
 # External dependencies
-set(EXTERNAL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external)
+message(STATUS "Configuring external dependencies...")
 
 # Add NamedType (header-only library)
 add_library(NamedType INTERFACE)
-target_include_directories(NamedType INTERFACE ${EXTERNAL_DIR}/NamedType/include)
+target_include_directories(NamedType INTERFACE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
+)
 
 # Add Quill logging library
-option(QUILL_BUILD_EXAMPLES "" OFF)
-option(QUILL_BUILD_TESTS "" OFF) 
-option(QUILL_BUILD_BENCHMARKS "" OFF)
-add_subdirectory(${EXTERNAL_DIR}/quill)
+option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
+option(QUILL_BUILD_TESTS "Build tests" OFF) 
+option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
+
+message(STATUS "Adding quill subdirectory...")
+add_subdirectory(external/quill)
 
 # Set default Aerial Framework path if not provided
 if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
@@ -93,8 +97,8 @@ add_library(aerial_framework INTERFACE)
 target_include_directories(aerial_framework INTERFACE 
     ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
     ${CUDAToolkit_INCLUDE_DIRS}
-    ${EXTERNAL_DIR}/NamedType/include
-    ${EXTERNAL_DIR}/quill/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/include
 )
 target_link_libraries(aerial_framework INTERFACE 
     ${FRAMEWORK_PIPELINE_LIB}
