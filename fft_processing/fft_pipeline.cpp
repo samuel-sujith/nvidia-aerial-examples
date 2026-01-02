@@ -64,14 +64,15 @@ bool FFTPipeline::is_fft_size_supported(size_t fft_size) const {
     const ::framework::task::CancellationToken& token) {
     
     if (!is_initialized_) {
-        return {false, "Pipeline not initialized"};
+        return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, 
+                                           "Pipeline not initialized");
     }
 
     // Simple stub implementation
     stats_.total_batches_processed++;
     stats_.total_samples_processed += 1024; // Assume 1024 samples per batch
     
-    return {true, ""};
+    return ::framework::task::TaskResult(::framework::task::TaskStatus::Completed);
 }
 
 // Factory implementation
