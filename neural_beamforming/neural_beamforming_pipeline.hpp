@@ -1,10 +1,8 @@
 #pragma once
 
-#include <pipeline/ipipeline.hpp>
-#include <aerial_framework/tensor/tensor_info.hpp>
-#include <aerial_framework/task/task_result.hpp>
-#include <aerial_framework/memory/memory_pool.hpp>
-#include <aerial_framework/cuda_utils/cuda_context.hpp>
+#include "tensor/tensor_info.hpp"
+#include "task/task_result.hpp"
+#include "pipeline/ipipeline.hpp"
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
