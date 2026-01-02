@@ -5,6 +5,7 @@
 add_library(modulation_pipeline
     modulator.cu
     modulation_pipeline.cpp
+    ../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(modulation_pipeline
