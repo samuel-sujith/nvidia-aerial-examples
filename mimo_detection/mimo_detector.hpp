@@ -47,7 +47,7 @@ struct MIMODetectionDescriptor {
 };
 
 /// MIMO detection module with multiple algorithms
-class MIMODetector final : public pipeline::IModule {
+class MIMODetector {
 public:
     explicit MIMODetector(
         const std::string& module_id,

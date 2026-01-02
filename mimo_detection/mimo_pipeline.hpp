@@ -6,6 +6,7 @@
 #include <cublas_v2.h>
 #include <vector>
 #include <memory>
+#include <map>
 #include <string>
 
 namespace mimo_detection {
@@ -26,7 +27,7 @@ struct MIMOPipelineConfig {
     size_t max_symbols_per_batch{1000}; ///< Max symbols per processing batch
     size_t max_batch_size{64};      ///< Maximum batch size
     MIMOAlgorithm detection_algorithm{MIMOAlgorithm::MMSE};
-    ModulationOrder modulation_order{ModulationOrder::QAM16};
+    int modulation_order{16}; // Simple int instead of complex enum
     bool enable_cuda_graphs{true};
     bool enable_profiling{false};
     int gpu_device_id{0};
@@ -77,7 +78,7 @@ struct MIMOPipelineStats {
 };
 
 /// High-performance MIMO detection pipeline with GPU optimization
-class MIMOPipeline final : public aerial::pipeline::IPipeline {
+class MIMOPipeline {
 private:
     MIMOPipelineConfig config_;
     std::unique_ptr<MIMODetector> mimo_detector_;
