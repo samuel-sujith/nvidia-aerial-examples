@@ -178,17 +178,14 @@ int run_channel_estimation_example(const ExampleConfig& config) {
         
         // Step 3: Setup pipeline specification
         PipelineSpec pipeline_spec;
-        pipeline_spec.pipeline_type = "channel_estimation_pipeline";
-        pipeline_spec.modules.resize(1);
-        pipeline_spec.modules[0].module_type = "channel_estimator";
-        pipeline_spec.modules[0].module_id = "channel_est_0";
-        // In real implementation, add module-specific parameters to spec
+        pipeline_spec.pipeline_name = "channel_estimation_pipeline";
+        // Simplified spec - actual module configuration would be more complex
         
         // Step 4: Create pipeline
         perf.start_measurement("Pipeline Creation");
         auto pipeline_factory = std::make_unique<ChannelEstimationPipelineFactory>();
         auto pipeline = pipeline_factory->create_pipeline(
-            "example_pipeline", module_factory.get(), pipeline_spec
+            "example_pipeline", pipeline_spec
         );
         perf.end_measurement("Pipeline Creation");
         
