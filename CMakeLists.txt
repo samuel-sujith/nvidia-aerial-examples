@@ -36,17 +36,20 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include")
     target_include_directories(NamedType INTERFACE 
         ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
     )
+    set(NAMEDTYPE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include)
     message(STATUS "Using external NamedType library")
 else()
     # Create minimal NamedType stub
-    add_library(NamedType INTERFACE)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/NamedType")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/NamedType/named_type.hpp"
         "#pragma once\n"
         "namespace fluent {\n"
         "template<typename T, typename Parameter> using NamedType = T;\n"
         "}\n"
     )
+    add_library(NamedType INTERFACE)
     target_include_directories(NamedType INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
+    set(NAMEDTYPE_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
     message(STATUS "Using NamedType stub")
 endif()
 
@@ -57,10 +60,11 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
     option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
     add_subdirectory(external/quill)
     set(QUILL_TARGET quill::quill)
+    set(QUILL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/include)
     message(STATUS "Using external Quill library")
 else()
-    # Create minimal Quill stub
-    add_library(quill_stub INTERFACE)
+    # Create comprehensive Quill stub
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/Backend.h"
         "#pragma once\n"
         "namespace quill { class Backend { public: static void start() {} static void stop() {} }; }\n"
@@ -72,9 +76,19 @@ else()
         "#define QUILL_LOG_WARNING(...) do {} while(0)\n"
         "#define QUILL_LOG_DEBUG(...) do {} while(0)\n"
     )
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/DeferredFormatCodec.h"
+        "#pragma once\n"
+        "namespace quill { template<typename T> struct DeferredFormatCodec {}; }\n"
+    )
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/DirectFormatCodec.h"
+        "#pragma once\n"
+        "namespace quill { template<typename T> struct DirectFormatCodec {}; }\n"
+    )
+    add_library(quill_stub INTERFACE)
     target_include_directories(quill_stub INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
     add_library(quill::quill ALIAS quill_stub)
     set(QUILL_TARGET quill_stub)
+    set(QUILL_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
     message(STATUS "Using Quill stub")
 endif()
 
@@ -131,8 +145,8 @@ add_library(aerial_framework INTERFACE)
 target_include_directories(aerial_framework INTERFACE 
     ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
     ${CUDAToolkit_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/include
+    ${NAMEDTYPE_INCLUDE_DIR}
+    ${QUILL_INCLUDE_DIR}
 )
 target_link_libraries(aerial_framework INTERFACE 
     ${FRAMEWORK_PIPELINE_LIB}
