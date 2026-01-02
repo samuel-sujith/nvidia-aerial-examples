@@ -1,6 +1,6 @@
-# Creating Custom Use Cases with NVIDIA Aerial Framework
+# Creating Custom Signal Processing Modules
 
-This guide provides step-by-step instructions for creating new use cases and modules with the NVIDIA Aerial Framework, following the established patterns from the example implementations.
+This guide provides step-by-step instructions for creating new signal processing modules following the patterns established in the examples. The examples use framework stubs to demonstrate algorithms without requiring full Aerial Framework installation.
 
 ## Table of Contents
 
@@ -9,7 +9,7 @@ This guide provides step-by-step instructions for creating new use cases and mod
 3. [Step-by-Step Implementation](#step-by-step-implementation)
 4. [Module Implementation](#module-implementation)
 5. [Pipeline Implementation](#pipeline-implementation)
-6. [Task Integration](#task-integration)
+6. [Framework Stubs Integration](#framework-stubs-integration)
 7. [Build System Integration](#build-system-integration)
 8. [Testing and Validation](#testing-and-validation)
 9. [Documentation Guidelines](#documentation-guidelines)
@@ -17,25 +17,29 @@ This guide provides step-by-step instructions for creating new use cases and mod
 
 ## Overview
 
-The NVIDIA Aerial Framework follows a modular architecture where signal processing functionality is implemented as:
+The examples follow a simplified modular architecture where signal processing functionality is implemented as:
 
-- **IModule**: Core processing units that execute specific algorithms
-- **IPipeline**: Orchestration layer that manages module execution and data flow
-- **Task System**: Asynchronous execution framework with cancellation and error handling
-- **Memory Management**: Efficient GPU memory pooling and tensor operations
+- **Modules**: Core processing units that execute specific algorithms
+- **Pipelines**: Orchestration layer that manages module execution and data flow
+- **Framework Stubs**: Compatibility layer that provides framework-like interfaces
+- **Memory Management**: Efficient GPU memory handling using CUDA APIs
 - **Factory Patterns**: Flexible instantiation and configuration
 
 ## Architecture Patterns
 
-### Core Interfaces
+### Core Includes
 
 ```cpp
-// Framework core interfaces
-#include <aerial_framework/pipeline/ipipeline.hpp>
-#include <aerial_framework/module/imodule.hpp>
-#include <aerial_framework/task/task_result.hpp>
-#include <aerial_framework/tensor/tensor_info.hpp>
-#include <aerial_framework/memory/memory_pool.hpp>
+// Standard includes for signal processing modules
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <complex>
+#include <vector>
+#include <memory>
+#include <chrono>
+
+// Framework stubs for compatibility (if needed)
+// Copy framework_stubs.cpp from any existing module
 ```
 
 ### Typical Module Structure
@@ -48,6 +52,10 @@ your_module/
 ├── your_pipeline.cpp           # Pipeline implementation
 ├── your_example.cpp            # Simple usage example
 ├── your_comprehensive_example.cpp  # Advanced example with benchmarks
+├── framework_stubs.cpp         # Framework compatibility layer (if needed)
+├── README.md                   # Module documentation
+└── CMakeLists.txt              # Build configuration
+```
 ├── CMakeLists.txt              # Build configuration
 └── README.md                   # Module documentation
 ```

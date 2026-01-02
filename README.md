@@ -8,13 +8,15 @@ A comprehensive collection of examples demonstrating GPU-accelerated 5G signal p
 
 ## 🚀 Overview
 
-This repository contains production-ready examples that demonstrate:
+This repository contains working examples that demonstrate:
 
 - **GPU-Accelerated Signal Processing**: High-performance CUDA implementations of 5G NR algorithms
-- **Framework Integration**: Proper use of Aerial framework abstractions (tasks, pipelines, tensors)
-- **Memory Management**: Efficient GPU memory handling with framework memory pools
-- **Performance Optimization**: CUDA graphs, shared memory, and stream-based execution
+- **Framework Integration**: Compatible implementations with Aerial framework patterns using stubs
+- **Memory Management**: Efficient GPU memory handling with CUDA APIs
+- **Performance Optimization**: CUDA kernels, stream-based execution, and optimized algorithms
 - **Production Patterns**: Error handling, monitoring, and scalable architecture designs
+
+**Note**: These examples use simplified framework stubs to demonstrate algorithms without requiring full Aerial framework installation. They showcase the signal processing algorithms and CUDA implementations that can be integrated with the complete framework.
 
 ## 📁 Repository Structure
 
@@ -22,10 +24,11 @@ This repository contains production-ready examples that demonstrate:
 nvidia-aerial-examples/
 ├── channel_estimation/          # Channel estimation pipeline example
 │   ├── channel_estimator.hpp    # Module interface and GPU kernel declarations
-│   ├── channel_estimator.cu     # CUDA implementation with LS/MMSE algorithms
+│   ├── channel_estimator.cu     # CUDA implementation with LS/MMSE algorithms  
 │   ├── channel_est_pipeline.hpp # Pipeline orchestration and factory classes
 │   ├── channel_est_pipeline.cpp # Pipeline implementation with memory management
-│   ├── example.cpp              # Complete working example with benchmarks
+│   ├── channel_estimation_example.cpp # Complete working example with benchmarks
+│   ├── framework_stubs.cpp      # Framework compatibility layer
 │   └── CMakeLists.txt           # Build configuration
 ├── modulation_mapping/          # QAM modulation mapping pipeline
 │   ├── modulator.hpp            # QPSK/16QAM/64QAM/256QAM implementations
@@ -37,7 +40,6 @@ nvidia-aerial-examples/
 │   ├── README.md                # Detailed module documentation
 │   └── CMakeLists.txt           # Build configuration
 ├── fft_processing/              # FFT-based processing pipeline
-│   ├── fft_module.hpp           # cuFFT integration with framework
 │   ├── fft_pipeline.hpp         # FFT pipeline interface with multi-size support
 │   ├── fft_pipeline.cpp         # cuFFT-based pipeline implementation
 │   ├── fft_example.cpp          # Simple OFDM processing and FFT usage examples
@@ -45,32 +47,29 @@ nvidia-aerial-examples/
 │   ├── README.md                # Detailed module documentation
 │   └── CMakeLists.txt           # Build configuration
 ├── mimo_detection/              # MIMO detection algorithms
-│   ├── mimo_detector.hpp        # ML, ZF, MMSE detection methods
+│   ├── mimo_detector.hpp        # ML, ZF, MMSE detection methods interface
 │   ├── mimo_pipeline.hpp        # MIMO detection pipeline interface
 │   ├── mimo_pipeline_impl.cu    # GPU-accelerated MIMO processing pipeline
 │   ├── mimo_example.cpp         # Simple real-time MIMO streaming examples
 │   ├── mimo_detection_example.cpp # Complete comprehensive example with benchmarks
+│   ├── framework_stubs.cpp      # Framework compatibility layer
 │   ├── README.md                # Detailed module documentation
 │   └── CMakeLists.txt           # Build configuration
-├── neural_beamforming/          # ML-based neural beamforming
-│   ├── neural_beamforming_pipeline.hpp # Neural beamforming with TensorRT integration
-│   ├── neural_beamforming_pipeline.cpp # ML pipeline implementation with training
-│   ├── neural_beamforming_example.cpp  # Simple ML integration demonstration
-│   ├── neural_beamforming_ml_example.cpp # Comprehensive ML pipeline example
-│   ├── README.md                # ML integration and training documentation
-│   └── CMakeLists.txt           # Build configuration with ML dependencies
-├── docs/                        # Documentation and guides
-│   ├── getting_started.md       # Setup and first example
-│   ├── performance_guide.md     # Optimization best practices
-│   └── api_reference.md         # Framework API documentation
+├── neural_beamforming/          # Simplified neural beamforming
+│   ├── neural_beamforming_pipeline_simple.hpp # Simplified neural beamforming interface
+│   ├── neural_beamforming_pipeline_simple.cpp # Basic beamforming implementation
+│   ├── neural_beamforming_example_simple.cpp  # Simple beamforming demonstration
+│   ├── neural_beamforming_ml_example_simple.cpp # Basic ML integration example
+│   ├── framework_stubs.cpp      # Framework compatibility layer
+│   ├── README.md                # Documentation
+│   └── CMakeLists.txt           # Build configuration
 ├── common/                      # Shared utilities and base classes
 │   ├── test_utils.hpp           # Testing and validation utilities
 │   ├── perf_utils.hpp           # Performance measurement tools
-│   └── data_generators.hpp     # Synthetic data generation
+│   └── CMakeLists.txt           # Shared utilities build configuration
 └── scripts/                     # Build and testing scripts
     ├── build.sh                 # Automated build script
-    ├── test_all.sh              # Run all examples and tests
-    └── benchmark.sh             # Performance benchmarking
+    └── test_all.sh              # Run all examples and tests
 ```
 
 ## 🛠 Prerequisites
@@ -82,10 +81,9 @@ nvidia-aerial-examples/
 
 ### Software Requirements
 - **CUDA Toolkit**: 11.8 or later
-- **CMake**: 3.20 or later
+- **CMake**: 3.20 or later  
 - **Compiler**: GCC 9+ or Clang 12+ with C++20 support
-- **NVIDIA Aerial Framework**: Latest version
-- **Optional**: Docker for containerized builds
+- **Note**: NVIDIA Aerial Framework is NOT required - these examples use framework stubs
 
 ## 🏗 Installation and Setup
 
@@ -95,9 +93,9 @@ git clone https://github.com/nvidia/nvidia-aerial-examples.git
 cd nvidia-aerial-examples
 ```
 
-### 2. Install NVIDIA Aerial Framework
+### 2. Install Dependencies
 ```bash
-# Download and install CUDA Toolkit (if not already installed)
+# Install CUDA Toolkit (if not already installed)
 wget https://developer.download.nvidia.com/compute/cuda/12.3.2/local_installers/cuda_12.3.2_545.23.08_linux.run
 sudo sh cuda_12.3.2_545.23.08_linux.run
 
@@ -105,87 +103,29 @@ sudo sh cuda_12.3.2_545.23.08_linux.run
 export PATH=/usr/local/cuda/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-# Install additional CUDA libraries
+# Install CUDA development libraries
 sudo apt-get update
 sudo apt-get install -y \
     libcublas-dev \
     libcurand-dev \
     libcusolver-dev \
-    libcufft-dev \
-    libcudnn8-dev \
-    libnvinfer-dev \
-    libnvinfer-plugin-dev
+    libcufft-dev
 
-# Download NVIDIA Aerial Framework
-# Option 1: From NGC (NVIDIA GPU Cloud) - Recommended
-docker pull nvcr.io/nvidia/aerial/aerial-framework:latest
-
-# Extract framework from container
-docker create --name temp_aerial nvcr.io/nvidia/aerial/aerial-framework:latest
-docker cp temp_aerial:/opt/nvidia/aerial-framework ./aerial-framework
-docker rm temp_aerial
-
-# Option 2: Build from source (if you have access to source)
-# git clone <aerial-framework-repo-url> aerial-framework
-# cd aerial-framework
-# mkdir build && cd build
-# cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/nvidia/aerial-framework
-# make -j$(nproc)
-# sudo make install
-
-# Set Aerial Framework environment variables
-export AERIAL_FRAMEWORK_ROOT=$(pwd)/aerial-framework
-export AERIAL_FRAMEWORK_INCLUDE_DIRS=${AERIAL_FRAMEWORK_ROOT}/include
-export AERIAL_FRAMEWORK_LIBRARIES=${AERIAL_FRAMEWORK_ROOT}/lib
-
-# Add to ~/.bashrc for persistence
-echo "export AERIAL_FRAMEWORK_ROOT=${AERIAL_FRAMEWORK_ROOT}" >> ~/.bashrc
-echo "export AERIAL_FRAMEWORK_INCLUDE_DIRS=${AERIAL_FRAMEWORK_ROOT}/include" >> ~/.bashrc
-echo "export AERIAL_FRAMEWORK_LIBRARIES=${AERIAL_FRAMEWORK_ROOT}/lib" >> ~/.bashrc
-echo "export LD_LIBRARY_PATH=${AERIAL_FRAMEWORK_ROOT}/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
-
-# Verify installation
-ls -la ${AERIAL_FRAMEWORK_ROOT}/include/aerial
-ls -la ${AERIAL_FRAMEWORK_ROOT}/lib
+# Verify CUDA installation
+nvcc --version
+nvidia-smi
 ```
 
-### 3. Setup Additional Dependencies
-```bash
-# Install TensorRT for neural beamforming example
-wget https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/local_installers/nv-tensorrt-local-repo-ubuntu2004-8.6.1-cuda-12.0_1.0-1_amd64.deb
-sudo dpkg -i nv-tensorrt-local-repo-ubuntu2004-8.6.1-cuda-12.0_1.0-1_amd64.deb
-sudo cp /var/nv-tensorrt-local-repo-ubuntu2004-8.6.1-cuda-12.0/nv-tensorrt-local-42B2FC56-keyring.gpg /usr/share/keyrings/
-sudo apt-get update
-sudo apt-get install -y tensorrt
-
-# Install cuDNN for neural network operations
-sudo apt-get install -y libcudnn8-dev
-
-# Install Python dependencies for ML examples (optional)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install onnx onnxruntime-gpu tensorrt
-```
-
-### 4. Build Examples
+### 3. Build Examples
 ```bash
 # Create build directory
 mkdir build && cd build
 
-# Verify Aerial Framework is properly installed
-if [ ! -d "${AERIAL_FRAMEWORK_ROOT}" ]; then
-    echo "Error: AERIAL_FRAMEWORK_ROOT not set or directory not found"
-    echo "Please set: export AERIAL_FRAMEWORK_ROOT=/path/to/aerial-framework"
-    exit 1
-fi
-
-# Configure with CMake
+# Configure with CMake (simplified - no Aerial Framework required)
 cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CUDA_ARCHITECTURES="70;75;80;86;89;90" \
-  -DAERIAL_FRAMEWORK_ROOT=${AERIAL_FRAMEWORK_ROOT} \
-  -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
-  -DTENSORRT_ROOT=/usr/local/TensorRT \
-  -DCUDNN_ROOT=/usr/local/cudnn
+  -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda
 
 # Build all examples
 make -j$(nproc)
@@ -196,7 +136,7 @@ echo "Available executables:"
 find . -name "*example" -type f -executable
 ```
 
-### 5. Run Examples
+### 4. Run Examples
 ```bash
 # Test basic functionality
 ./channel_estimation/channel_estimation_example
@@ -205,39 +145,30 @@ find . -name "*example" -type f -executable
 ./modulation_mapping/modulation_mapping_example
 ./fft_processing/fft_processing_example  
 ./mimo_detection/mimo_detection_example
-./neural_beamforming/neural_beamforming_ml_example
+./neural_beamforming/neural_beamforming_example_simple
 
-# Performance benchmarks
-./scripts/benchmark.sh --all-examples --iterations 1000
+# Run simple examples
+./modulation_mapping/modulation_example
+./fft_processing/fft_example
+./mimo_detection/mimo_example
+./neural_beamforming/neural_beamforming_ml_example_simple
 ```
 
 ## 🔧 Installation Troubleshooting
 
 ### Common Issues
 
-**1. Aerial Framework Not Found:**
-```bash
-# Verify paths
-echo $AERIAL_FRAMEWORK_ROOT
-ls -la $AERIAL_FRAMEWORK_ROOT/include/aerial
-ls -la $AERIAL_FRAMEWORK_ROOT/lib
-
-# If using NGC container method, ensure extraction worked
-docker images | grep aerial
-```
-
-**2. CUDA/TensorRT Issues:**
+**1. CUDA Not Found:**
 ```bash
 # Check CUDA installation
 nvcc --version
 nvidia-smi
 
-# Verify TensorRT
-dpkg -l | grep tensorrt
-pkg-config --modversion tensorrt
+# Verify CUDA libraries
+ldconfig -p | grep cuda
 ```
 
-**3. Build Errors:**
+**2. Build Errors:**
 ```bash
 # Clean rebuild
 rm -rf build && mkdir build && cd build
@@ -245,11 +176,11 @@ rm -rf build && mkdir build && cd build
 # Debug build for more information
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON
 
-# Check specific dependencies
-cmake .. --debug-find
+# Check CUDA architecture support
+nvidia-smi --query-gpu=compute_cap --format=csv
 ```
 
-**4. Runtime Issues:**
+**3. Runtime Issues:**
 ```bash
 # Check library paths
 echo $LD_LIBRARY_PATH
@@ -259,21 +190,25 @@ ldd ./channel_estimation/channel_estimation_example
 nvidia-smi
 ```
 
-## 🐳 Docker Alternative
+## 🐳 Docker Alternative (Simplified)
 
-If you prefer containerized development:
+For a quick start with Docker:
 
 ```bash
-# Use pre-built development container
+# Create a simple CUDA development environment
 docker run --gpus all -it --rm \
   -v $(pwd):/workspace \
-  nvcr.io/nvidia/aerial/aerial-framework:latest \
+  nvidia/cuda:12.3-devel-ubuntu20.04 \
   /bin/bash
 
-# Inside container
+# Inside container, install dependencies
+apt-get update
+apt-get install -y cmake build-essential
+
+# Build examples
 cd /workspace
 mkdir build && cd build
-cmake .. -DAERIAL_FRAMEWORK_ROOT=/opt/nvidia/aerial-framework
+cmake ..
 make -j$(nproc)
 ```
 ./mimo_detection/mimo_example
@@ -292,8 +227,8 @@ make -j$(nproc)
 A comprehensive example showing 5G NR channel estimation with multiple algorithms:
 - **Location**: `channel_estimation/`
 - **Algorithms**: Least Squares, MMSE, Linear Interpolation
-- **Features**: CUDA graphs, memory pools, performance monitoring
-- **Performance**: 45,000+ ops/sec, <25μs latency
+- **Features**: CUDA kernels, memory management, performance monitoring
+- **Implementation**: Framework stubs for compatibility, full CUDA implementation
 
 ### Modulation Mapping Pipeline
 GPU-accelerated QAM constellation mapping pipeline for 5G NR:
@@ -301,80 +236,78 @@ GPU-accelerated QAM constellation mapping pipeline for 5G NR:
 - **Modulations**: QPSK, 16QAM, 64QAM, 256QAM
 - **Features**: Batch processing, factory patterns, performance statistics
 - **Optimizations**: Shared memory tables, coalesced access patterns
-- **Throughput**: 100M+ symbols/sec
 
 ### FFT Processing Pipeline
 cuFFT-based FFT operations with OFDM support:
 - **Location**: `fft_processing/`
 - **Operations**: Forward/Inverse FFT, mixed batch sizes
-- **Features**: OFDM processing, cyclic prefix handling, precision modes
+- **Features**: OFDM processing, simplified cuFFT integration
 - **Applications**: 5G NR OFDM symbol processing
-- **Performance**: Variable based on FFT size and batch configuration
 
 ### MIMO Detection Pipeline
 Multi-antenna signal detection algorithms with real-time streaming:
 - **Location**: `mimo_detection/`
 - **Methods**: Maximum Likelihood, Zero Forcing, MMSE
 - **Configurations**: 2x2, 4x4, 8x8 MIMO systems
-- **Features**: Batch processing, streaming support, SNR analysis
+- **Features**: Batch processing, streaming support, simplified API
 - **Applications**: 5G NR PUSCH/PDSCH processing
 
 ### Neural Beamforming Pipeline
-ML-based intelligent beamforming with complete training and deployment pipeline:
+Simplified neural beamforming demonstration:
 - **Location**: `neural_beamforming/`
-- **Algorithms**: DNN/CNN beamforming, hybrid traditional+neural approaches
-- **ML Integration**: TensorRT optimization, FP32/FP16/INT8 precision support
-- **Features**: Online learning, training data generation, model export
-- **Applications**: Intelligent antenna array optimization for 5G/6G
+- **Algorithms**: Basic beamforming, simplified neural approach
+- **Features**: CUDA implementation, simplified API
+- **Implementation**: Demonstrates beamforming concepts without complex ML dependencies
+- **Applications**: Antenna array optimization concepts
 
 ## 🔧 Build Options
 
 ```bash
 # Debug build with detailed logging
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_DETAILED_LOGGING=ON
+cmake .. -DCMAKE_BUILD_TYPE=Debug
 
 # Release build with optimizations
-cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_FAST_MATH=ON
-
-# Build with unit tests
-cmake .. -DBUILD_TESTS=ON -DENABLE_GTEST=ON
-
-# Build with documentation
-cmake .. -DBUILD_DOCS=ON -DENABLE_DOXYGEN=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release
 
 # Specific GPU architectures
 cmake .. -DCMAKE_CUDA_ARCHITECTURES="80;86"  # Ampere only
+cmake .. -DCMAKE_CUDA_ARCHITECTURES="70;75"  # Volta/Turing only
+
+# Enable verbose output
+cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON
 ```
 
-## 📊 Performance Benchmarks
+## 📊 Performance Notes
 
-| Example | Configuration | Throughput | Latency | GPU Memory |
-|---------|--------------|------------|---------|------------|
-| Channel Est | 100 RBs, LS | 12,000 ops/sec | 83μs | 60MB |
-| Channel Est | 273 RBs, MMSE | 4,500 ops/sec | 222μs | 164MB |
-| Modulation | 16QAM Batch | 120M symbols/sec | 8μs | 25MB |
-| Modulation | 256QAM HP | 85M symbols/sec | 12μs | 32MB |
-| FFT | 1024 Batch | 2,800 Msamples/sec | 15μs | 40MB |
-| FFT | OFDM 2048 | 1,200 Msamples/sec | 35μs | 85MB |
-| MIMO 2x2 | ZF Detection | 15,000 slots/sec | 67μs | 30MB |
-| MIMO 4x4 | MMSE Detection | 8,000 slots/sec | 125μs | 45MB |
-| MIMO 8x8 | ML Detection | 2,200 slots/sec | 455μs | 120MB |
+These examples demonstrate algorithmic implementations and CUDA programming patterns. Performance will vary based on:
 
-*Benchmarks performed on RTX 4090 with CUDA 12.3*
+- **GPU Architecture**: Newer architectures (Ampere, Ada Lovelace, Hopper) provide better performance
+- **Memory Bandwidth**: Large batch sizes benefit from high memory bandwidth
+- **CUDA Toolkit Version**: Newer versions include optimizations
+- **System Configuration**: CPU, PCIe lanes, and system memory affect overall performance
+
+### Expected Performance Characteristics
+| Example | Algorithm | Implementation Focus |
+|---------|-----------|---------------------|
+| Channel Est | LS/MMSE | CUDA kernel optimization, memory coalescing |
+| Modulation | QAM Mapping | Lookup table optimization, batch processing |
+| FFT | cuFFT Integration | Library integration, memory management |
+| MIMO Detection | ZF/MMSE | Matrix operations, cuBLAS integration |
+| Neural Beamforming | Basic Demo | Simplified beamforming concepts |
+
+*Performance will vary significantly based on problem size, GPU hardware, and configuration*
 
 ## 🧪 Testing
 
 ```bash
-# Run all unit tests
-make test
+# Run examples to verify functionality
+./channel_estimation/channel_estimation_example
+./modulation_mapping/modulation_example
+./fft_processing/fft_example
+./mimo_detection/mimo_example
+./neural_beamforming/neural_beamforming_example_simple
 
-# Run specific example tests
-ctest -R channel_estimation
-
-# Performance regression tests
-./scripts/benchmark.sh --baseline
-
-# Memory leak detection
+# Check memory usage (if valgrind is available)
 valgrind --tool=memcheck ./channel_estimation/channel_estimation_example
 ```
 
@@ -393,10 +326,10 @@ docker run --gpus all -v $(pwd)/data:/workspace/data -it aerial-examples
 
 ## 📖 Documentation
 
-- **[Getting Started Guide](docs/getting_started.md)**: Step-by-step tutorial for your first example
-- **[Performance Optimization](docs/performance_guide.md)**: Best practices for GPU acceleration
-- **[API Reference](docs/api_reference.md)**: Complete framework interface documentation
-- **[Architecture Overview](docs/architecture.md)**: Framework design principles and patterns
+- **Module README Files**: Each module has detailed documentation in its README.md file
+- **Code Comments**: Extensive inline documentation in source files
+- **CUDA Programming**: Examples demonstrate CUDA best practices
+- **5G Signal Processing**: Algorithm implementations follow 3GPP specifications
 
 ## 🤝 Contributing
 
@@ -420,8 +353,9 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 **CUDA Out of Memory**
 ```bash
-# Reduce batch size or resource blocks
-./example --num-rbs 25 --batch-size 1
+# Reduce batch size in examples
+# Check available GPU memory
+nvidia-smi
 ```
 
 **Compilation Errors**
@@ -429,15 +363,18 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 # Check CUDA and compiler versions
 nvcc --version
 gcc --version
+
+# Ensure compute capability matches your GPU
+nvidia-smi --query-gpu=compute_cap --format=csv
 ```
 
 **Performance Issues**
 ```bash
-# Enable GPU persistence mode
+# Enable GPU persistence mode for consistent performance
 sudo nvidia-smi -pm 1
 
-# Set GPU clocks to maximum
-sudo nvidia-smi -lgc 1900,1900
+# Check thermal throttling
+watch -n 1 nvidia-smi
 ```
 
 ## 📄 License
@@ -452,7 +389,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/nvidia/nvidia-aerial-examples/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/nvidia/nvidia-aerial-examples/discussions)
-- **Documentation**: [NVIDIA Aerial Documentation](https://docs.nvidia.com/aerial/)
-- **Developer Forums**: [NVIDIA Developer Forums](https://forums.developer.nvidia.com/c/aerial/)
+- **Code Issues**: Review module README files and code comments
+- **CUDA Programming**: [NVIDIA CUDA Documentation](https://docs.nvidia.com/cuda/)
+- **5G Algorithms**: [3GPP Specifications](https://www.3gpp.org/specifications)
+- **GPU Performance**: [CUDA Best Practices Guide](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/)
