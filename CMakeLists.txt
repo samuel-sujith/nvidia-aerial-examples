@@ -172,6 +172,8 @@ endif()
 # Global include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
 include_directories(${CUDAToolkit_INCLUDE_DIRS})
+include_directories(${NAMEDTYPE_INCLUDE_DIR})
+include_directories(${QUILL_INCLUDE_DIR})
 
 # Common utilities library
 add_subdirectory(common)
