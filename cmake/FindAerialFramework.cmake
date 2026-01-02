@@ -49,6 +49,18 @@ if(FRAMEWORK_QUILL_INCLUDE)
     list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${FRAMEWORK_QUILL_INCLUDE})
 endif()
 
+# Check for missing critical headers and create stubs if needed
+if(NOT EXISTS "${FRAMEWORK_INCLUDE_BASE}/task/task_export.hpp")
+    message(STATUS "Creating missing task_export.hpp stub")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/framework_stubs/task")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/framework_stubs/task/task_export.hpp"
+        "#pragma once\\n"
+        "// Task export stub - no special exports needed for examples\\n"
+        "#define TASK_EXPORT\\n"
+    )
+    list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/framework_stubs")
+endif()
+
 # Find framework libraries with multiple naming conventions
 function(find_framework_library VAR_NAME)
     set(LIB_NAMES ${ARGN})

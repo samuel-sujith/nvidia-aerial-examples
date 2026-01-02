@@ -55,7 +55,7 @@ struct ChannelEstLaunchConfig {
 };
 
 /// Channel estimator class implementing the framework task pattern
-class ChannelEstimator final : public pipeline::IModule {
+class ChannelEstimator final {
 public:
     /**
      * Constructor
@@ -67,19 +67,19 @@ public:
         const ChannelEstParams& params
     );
     
-    ~ChannelEstimator() override;
+    ~ChannelEstimator();
 
-    // IModule interface implementation
-    std::string_view get_module_id() const override { return module_id_; }
+    // Module interface implementation  
+    std::string_view get_module_id() const { return module_id_; }
     
     task::TaskResult execute(
         const std::vector<tensor::TensorInfo>& inputs,
         std::vector<tensor::TensorInfo>& outputs,
         const task::CancellationToken& token
-    ) override;
+    );
 
-    bool is_input_ready(std::size_t input_index) const override;
-    bool is_output_ready(std::size_t output_index) const override;
+    bool is_input_ready(std::size_t input_index) const;
+    bool is_output_ready(std::size_t output_index) const;
 
     /// Setup GPU kernel for channel estimation
     cudaError_t setup_channel_estimation(
@@ -107,31 +107,35 @@ private:
     cudaError_t configure_kernel_launch();
 };
 
-/// GPU kernel functions (implemented in .cu file)
-extern "C" {
-    /// Main channel estimation kernel
-    __global__ void channel_estimation_kernel(ChannelEstDescriptor* desc);
-    
-    /// Helper device functions
-    __device__ cuComplex least_squares_estimate(
-        const cuComplex* rx_pilots, 
-        const cuComplex* tx_pilots,
-        int pilot_idx
-    );
-    
-    __device__ cuComplex mmse_estimate(
-        const cuComplex* rx_pilots,
-        const cuComplex* tx_pilots, 
-        float noise_variance,
-        int pilot_idx
-    );
-    
-    __device__ cuComplex linear_interpolate(
-        const cuComplex* channel_pilots,
-        int data_subcarrier_idx,
-        int pilot_spacing
-    );
-}
+/// GPU kernel functions (implemented in .cu file)  
+namespace framework {
+namespace examples {
+
+/// Main channel estimation kernel
+__global__ void channel_estimation_kernel(ChannelEstDescriptor* desc);
+
+/// Helper device functions
+__device__ cuComplex least_squares_estimate(
+    const cuComplex* rx_pilots, 
+    const cuComplex* tx_pilots,
+    int pilot_idx
+);
+
+__device__ cuComplex mmse_estimate(
+    const cuComplex* rx_pilots,
+    const cuComplex* tx_pilots, 
+    float noise_variance,
+    int pilot_idx
+);
+
+__device__ cuComplex linear_interpolate(
+    const cuComplex* channel_pilots,
+    int data_subcarrier_idx,
+    int pilot_spacing
+);
+
+} // namespace examples
+} // namespace framework
 
 } // namespace framework::examples
 

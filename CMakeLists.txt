@@ -99,35 +99,73 @@ if(NOT TARGET quill::quill)
             add_subdirectory(external/quill)
             message(STATUS "Using local external Quill library")
         else()
-            # Create Quill compatibility stubs for missing headers
-            message(STATUS "Creating Quill compatibility stubs")
+            # Create comprehensive Quill compatibility stubs for missing headers
+            message(STATUS "Creating comprehensive Quill compatibility stubs")
             file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill")
             file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/sinks")
+            file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std")
             
-            # Create missing headers as stubs
-            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/DeferredFormatCodec.h"
-                "#pragma once\n"
-                "namespace quill { template<typename T> struct DeferredFormatCodec {}; }\n"
-            )
-            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/DirectFormatCodec.h"
-                "#pragma once\n"
-                "namespace quill { template<typename T> struct DirectFormatCodec {}; }\n"
-            )
+            # Create comprehensive Backend.h with all expected types
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/Backend.h"
                 "#pragma once\n"
-                "namespace quill { class Backend { public: static void start() {} static void stop() {} }; }\n"
+                "#include <memory>\n"
+                "#include <string>\n"
+                "namespace quill {\n"
+                "  enum class QueueType { UnboundedBlocking, UnboundedDropping, BoundedBlocking, BoundedDropping };\n"
+                "  enum class HugePagesPolicy { Never, Auto, Always };\n"
+                "  enum class LogLevel { Critical, Error, Warning, Info, Debug, Trace };\n"
+                "  class Sink {};\n"
+                "  template<typename T> class FrontendImpl {};\n"
+                "  template<typename T> class LoggerImpl {};\n"
+                "  class Backend {\n"
+                "  public:\n"
+                "    static void start() {}\n"
+                "    static void stop() {}\n"
+                "  };\n"
+                "}\n"
             )
+            
+            # Create DeferredFormatCodec.h
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/DeferredFormatCodec.h"
+                "#pragma once\n"
+                "namespace quill {\n"
+                "  template<typename T> struct DeferredFormatCodec {};\n"
+                "  template<typename T> struct Codec {};\n"
+                "}\n"
+            )
+            
+            # Create DirectFormatCodec.h
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/DirectFormatCodec.h"
+                "#pragma once\n"
+                "namespace quill {\n"
+                "  template<typename T> struct DirectFormatCodec {};\n"
+                "}\n"
+            )
+            
+            # Create Frontend.h
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/Frontend.h"
                 "#pragma once\n"
-                "namespace quill { class Frontend {}; }\n"
+                "namespace quill {\n"
+                "  class Frontend {};\n"
+                "  template<typename T> class FrontendImpl {};\n"
+                "}\n"
             )
+            
+            # Create Logger.h  
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/Logger.h"
                 "#pragma once\n"
-                "namespace quill { class Logger {}; }\n"
+                "namespace quill {\n"
+                "  class Logger {};\n"
+                "  template<typename T> class LoggerImpl {};\n"
+                "}\n"
             )
+            
+            # Create HelperMacros.h
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/HelperMacros.h"
                 "#pragma once\n"
             )
+            
+            # Create comprehensive LogMacros.h
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/LogMacros.h" 
                 "#pragma once\n"
                 "#define QUILL_LOG_INFO(...) do {} while(0)\n"
@@ -137,6 +175,8 @@ if(NOT TARGET quill::quill)
                 "#define QUILL_LOG_TRACE(...) do {} while(0)\n"
                 "#define QUILL_LOG_CRITICAL(...) do {} while(0)\n"
             )
+            
+            # Create sink headers
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/sinks/ConsoleSink.h"
                 "#pragma once\n"
                 "namespace quill { namespace sinks { class ConsoleSink {}; } }\n"
@@ -158,15 +198,21 @@ if(NOT TARGET quill::quill)
                 "namespace quill { namespace sinks { class RotatingJsonFileSink {}; } }\n"
             )
             
-            # Create std directory and headers
-            file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std")
+            # Create std namespace headers with proper types
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std/Pair.h"
                 "#pragma once\n"
-                "namespace quill { namespace std { } }\n"
+                "#include <utility>\n"
+                "namespace quill { namespace std { using size_t = ::std::size_t; } }\n"
             )
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std/Vector.h"
                 "#pragma once\n"
-                "namespace quill { namespace std { } }\n"
+                "#include <vector>\n"
+                "#include <span>\n"
+                "namespace quill { namespace std { \n"
+                "  using size_t = ::std::size_t;\n"
+                "  template<typename T, ::std::size_t Extent = ::std::dynamic_extent>\n"
+                "  using span = ::std::span<T, Extent>;\n"
+                "} }\n"
             )
             add_library(quill_stubs INTERFACE)
             target_include_directories(quill_stubs INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs")

@@ -9,6 +9,9 @@
 #include <cmath>
 #include <stdexcept>
 
+namespace framework {
+namespace examples {
+
 // CUDA kernel implementation
 __device__ cuComplex least_squares_estimate(
     const cuComplex* rx_pilots, 
@@ -339,4 +342,5 @@ bool ChannelEstimator::is_output_ready(std::size_t output_index) const {
     return output_index == 0; // channel_estimates
 }
 
-} // namespace framework::examples
+} // namespace examples  
+} // namespace framework
