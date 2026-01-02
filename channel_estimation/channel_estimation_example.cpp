@@ -27,7 +27,7 @@
 #include "channel_estimator.hpp"
 #include "channel_est_pipeline.hpp"
 #include "tensor/tensor_info.hpp"
-#include "pipeline/pipeline_spec.hpp"
+#include "pipeline/types.hpp"
 
 using namespace framework::examples;
 
