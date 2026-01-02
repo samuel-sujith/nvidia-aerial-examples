@@ -41,6 +41,7 @@ set(AERIAL_FRAMEWORK_INCLUDE_DIRS
     ${AERIAL_FRAMEWORK_ROOT}/include/memory
     ${AERIAL_FRAMEWORK_ROOT}/include/utils
     ${AERIAL_FRAMEWORK_ROOT}/include/log
+    ${AERIAL_FRAMEWORK_ROOT}/include/wise_enum
 )
 
 # Find framework libraries

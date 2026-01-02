@@ -1,6 +1,6 @@
 #pragma once
 
-#include <aerial_framework/pipeline/ipipeline.hpp>
+#include <pipeline/ipipeline.hpp>
 #include <aerial_framework/tensor/tensor_info.hpp>
 #include <aerial_framework/task/task_result.hpp>
 #include <aerial_framework/memory/memory_pool.hpp>
