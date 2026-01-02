@@ -36,7 +36,10 @@ add_executable(neural_beamforming_example
 )
 
 target_link_libraries(neural_beamforming_example
-    PRIVATE neural_beamforming_pipeline
+    PRIVATE 
+        neural_beamforming_pipeline
+        CUDA::cudart
+        CUDA::cublas
 )
 
 # Comprehensive ML Example
@@ -46,7 +49,10 @@ add_executable(neural_beamforming_ml_example
 )
 
 target_link_libraries(neural_beamforming_ml_example
-    PRIVATE neural_beamforming_pipeline
+    PRIVATE 
+        neural_beamforming_pipeline
+        CUDA::cudart
+        CUDA::cublas
 )
 
 # Installation rules
@@ -56,7 +62,7 @@ install(TARGETS neural_beamforming_pipeline neural_beamforming_example neural_be
     ARCHIVE DESTINATION lib
 )
 
-install(FILES neural_beamforming_pipeline.hpp
+install(FILES neural_beamforming_pipeline_simple.hpp
     DESTINATION include/neural_beamforming
 )
 
