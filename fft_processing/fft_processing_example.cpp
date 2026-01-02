@@ -29,7 +29,7 @@
 #include "fft_module.hpp"
 #include "fft_pipeline.hpp"
 #include "tensor/tensor_info.hpp"
-#include "pipeline/pipeline_spec.hpp"
+#include "pipeline/ipipeline.hpp"
 
 using namespace fft_processing;
 
