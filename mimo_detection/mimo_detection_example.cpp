@@ -28,7 +28,6 @@
 
 #include "mimo_detector.hpp"
 #include "mimo_pipeline.hpp"
-#include "../framework_stubs.hpp"
 
 using namespace mimo_detection;
 
