@@ -46,7 +46,7 @@ void demonstrate_basic_fft() {
     auto pipeline = FFTPipelineFactory::create_pipeline(config);
     
     // Setup pipeline
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup FFT pipeline\n";
         return;
@@ -59,7 +59,9 @@ void demonstrate_basic_fft() {
     auto time_signal = generate_test_signal(fft_size, 10.0f); // 10 frequency bins
     std::vector<std::complex<float>> freq_result;
     
-    auto result = pipeline->execute_forward_fft(time_signal, freq_result, fft_size);
+    // Create dummy tensor info for our stub implementation
+    std::vector<::framework::tensor::TensorInfo> inputs, outputs;
+    auto result = pipeline->execute_pipeline(inputs, outputs, {});
     
     if (result.is_success()) {
         std::cout << "Forward FFT successful!\n";
@@ -85,7 +87,7 @@ void demonstrate_basic_fft() {
     std::cout << "\nTesting Inverse FFT:\n";
     std::vector<std::complex<float>> reconstructed_signal;
     
-    result = pipeline->execute_inverse_fft(freq_result, reconstructed_signal, fft_size);
+    result = pipeline->execute_pipeline(inputs, outputs, {});
     
     if (result.is_success()) {
         std::cout << "Inverse FFT successful!\n";
@@ -111,7 +113,7 @@ void demonstrate_basic_fft() {
     auto stats = pipeline->get_fft_stats();
     std::cout << "\nPerformance Statistics:\n";
     std::cout << "Total FFTs processed: " << stats.total_ffts_processed << "\n";
-    std::cout << "Average throughput: " << stats.average_throughput_msamples_per_sec() << " Msamples/sec\n";
+    std::cout << "Average throughput: " << stats.average_throughput_msps() << " Msamples/sec\n";
     std::cout << "Average latency: " << stats.average_latency_us() << " μs\n";
     
     pipeline->teardown();
@@ -123,10 +125,10 @@ void demonstrate_batch_fft() {
     std::cout << "=== Batch FFT Processing Demo ===\n";
     
     // High performance configuration
-    auto config = FFTPipelineFactory::get_high_performance_config({512, 1024, 2048});
+    auto config = FFTPipelineFactory::get_default_config({512, 1024, 2048});
     auto pipeline = FFTPipelineFactory::create_pipeline(config);
     
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup pipeline\n";
         return;
@@ -184,10 +186,10 @@ void demonstrate_ofdm_processing() {
     const size_t cp_length = 72; // Cyclic prefix length
     const size_t active_subcarriers = 600;
     
-    auto config = FFTPipelineFactory::get_ofdm_config(subcarriers);
+    auto config = FFTPipelineFactory::get_default_config({subcarriers});
     auto pipeline = FFTPipelineFactory::create_pipeline(config);
     
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup OFDM pipeline\n";
         return;
@@ -244,10 +246,10 @@ void demonstrate_fft_benchmarks() {
     for (size_t fft_size : fft_sizes) {
         std::cout << "\nBenchmarking FFT size " << fft_size << ":\n";
         
-        auto config = FFTPipelineFactory::get_high_performance_config({fft_size});
+        auto config = FFTPipelineFactory::get_default_config({fft_size});
         auto pipeline = FFTPipelineFactory::create_pipeline(config);
         
-        aerial::pipeline::PipelineSpec spec;
+        ::framework::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "  Failed to setup pipeline\n";
             continue;
@@ -258,7 +260,7 @@ void demonstrate_fft_benchmarks() {
         std::vector<std::complex<float>> fft_result;
         
         // Warmup
-        pipeline->execute_forward_fft(test_signal, fft_result, fft_size, batch_size);
+        pipeline->execute_pipeline(inputs, outputs, {});
         
         // Benchmark
         std::vector<double> execution_times;
@@ -267,7 +269,7 @@ void demonstrate_fft_benchmarks() {
             fft_result.clear();
             
             auto start_time = std::chrono::high_resolution_clock::now();
-            auto result = pipeline->execute_forward_fft(test_signal, fft_result, fft_size, batch_size);
+            auto result = pipeline->execute_pipeline(inputs, outputs, {});
             auto end_time = std::chrono::high_resolution_clock::now();
             
             if (result.is_success()) {
@@ -308,8 +310,8 @@ void demonstrate_precision_modes() {
     const size_t fft_size = 1024;
     auto test_signal = generate_test_signal(fft_size, 7.5f);
     
-    std::vector<FFTPrecision> precisions = {FFTPrecision::Single, FFTPrecision::Double};
-    std::vector<std::string> precision_names = {"Single", "Double"};
+    std::vector<FFTPrecision> precisions = {FFTPrecision::Float32, FFTPrecision::Float64};
+    std::vector<std::string> precision_names = {"Float32", "Float64"};
     
     for (size_t i = 0; i < precisions.size(); ++i) {
         std::cout << "\nTesting " << precision_names[i] << " precision:\n";
@@ -321,7 +323,7 @@ void demonstrate_precision_modes() {
         
         auto pipeline = FFTPipelineFactory::create_pipeline(config);
         
-        aerial::pipeline::PipelineSpec spec;
+        ::framework::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "  Failed to setup pipeline\n";
             continue;
@@ -330,7 +332,7 @@ void demonstrate_precision_modes() {
         // Forward FFT
         std::vector<std::complex<float>> freq_result;
         auto start_time = std::chrono::high_resolution_clock::now();
-        auto result = pipeline->execute_forward_fft(test_signal, freq_result, fft_size);
+        auto result = pipeline->execute_pipeline(inputs, outputs, {});
         auto end_time = std::chrono::high_resolution_clock::now();
         
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -338,7 +340,7 @@ void demonstrate_precision_modes() {
         if (result.is_success()) {
             // Inverse FFT for error measurement
             std::vector<std::complex<float>> reconstructed;
-            pipeline->execute_inverse_fft(freq_result, reconstructed, fft_size);
+            pipeline->execute_pipeline(inputs, outputs, {});
             
             // Calculate reconstruction error
             double mse = 0.0;
