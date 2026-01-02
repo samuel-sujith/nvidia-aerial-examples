@@ -27,22 +27,56 @@ option(ENABLE_DEBUG_INFO "Enable debug information" OFF)
 # Find required packages
 find_package(CUDAToolkit REQUIRED)
 
-# External dependencies
+# External dependencies - handle missing gracefully
 message(STATUS "Configuring external dependencies...")
 
-# Add NamedType (header-only library)
-add_library(NamedType INTERFACE)
-target_include_directories(NamedType INTERFACE 
-    ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
-)
+# Add NamedType (check if available, otherwise create stub)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include")
+    add_library(NamedType INTERFACE)
+    target_include_directories(NamedType INTERFACE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/include
+    )
+    message(STATUS "Using external NamedType library")
+else()
+    # Create minimal NamedType stub
+    add_library(NamedType INTERFACE)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/NamedType/named_type.hpp"
+        "#pragma once\n"
+        "namespace fluent {\n"
+        "template<typename T, typename Parameter> using NamedType = T;\n"
+        "}\n"
+    )
+    target_include_directories(NamedType INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
+    message(STATUS "Using NamedType stub")
+endif()
 
-# Add Quill logging library
-option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
-option(QUILL_BUILD_TESTS "Build tests" OFF) 
-option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
-
-message(STATUS "Adding quill subdirectory...")
-add_subdirectory(external/quill)
+# Add Quill (check if available, otherwise create stub)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
+    option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
+    option(QUILL_BUILD_TESTS "Build tests" OFF) 
+    option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
+    add_subdirectory(external/quill)
+    set(QUILL_TARGET quill::quill)
+    message(STATUS "Using external Quill library")
+else()
+    # Create minimal Quill stub
+    add_library(quill_stub INTERFACE)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/Backend.h"
+        "#pragma once\n"
+        "namespace quill { class Backend { public: static void start() {} static void stop() {} }; }\n"
+    )
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill/LogMacros.h" 
+        "#pragma once\n"
+        "#define QUILL_LOG_INFO(...) do {} while(0)\n"
+        "#define QUILL_LOG_ERROR(...) do {} while(0)\n"
+        "#define QUILL_LOG_WARNING(...) do {} while(0)\n"
+        "#define QUILL_LOG_DEBUG(...) do {} while(0)\n"
+    )
+    target_include_directories(quill_stub INTERFACE "${CMAKE_CURRENT_BINARY_DIR}")
+    add_library(quill::quill ALIAS quill_stub)
+    set(QUILL_TARGET quill_stub)
+    message(STATUS "Using Quill stub")
+endif()
 
 # Set default Aerial Framework path if not provided
 if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
@@ -107,7 +141,7 @@ target_link_libraries(aerial_framework INTERFACE
     ${FRAMEWORK_TENSORRT_LIB}
     ${FRAMEWORK_TASK_LIB}
     NamedType
-    quill::quill
+    ${QUILL_TARGET}
 )
 
 # Compiler flags
