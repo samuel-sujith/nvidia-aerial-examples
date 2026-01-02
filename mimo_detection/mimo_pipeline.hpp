@@ -1,9 +1,8 @@
 #pragma once
 
 #include "mimo_detector.hpp"
-#include <aerial/pipeline/IPipeline.hpp>
-#include <aerial/memory/MemoryPool.hpp>
-#include <aerial/task/TaskResult.hpp>
+#include "pipeline/ipipeline.hpp"
+#include "task/task.hpp"
 #include <cublas_v2.h>
 #include <cusolver_dense.h>
 #include <vector>
