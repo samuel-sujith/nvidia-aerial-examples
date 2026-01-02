@@ -28,7 +28,7 @@
 #include "modulator.hpp"
 #include "modulation_pipeline.hpp"
 #include "tensor/tensor_info.hpp"
-#include "pipeline/pipeline_spec.hpp"
+#include "pipeline/types.hpp"
 
 using namespace modulation_mapping;
 
