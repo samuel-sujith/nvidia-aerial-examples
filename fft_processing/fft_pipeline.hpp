@@ -1,9 +1,9 @@
 #pragma once
 
 #include "fft_module.hpp"
-#include <aerial/pipeline/IPipeline.hpp>
-#include <aerial/memory/MemoryPool.hpp>
-#include <aerial/task/TaskResult.hpp>
+#include <framework/pipeline/pipeline.hpp>
+#include <framework/memory/memory_pool.hpp>
+#include <framework/task/task_result.hpp>
 #include <cufft.h>
 #include <vector>
 #include <memory>

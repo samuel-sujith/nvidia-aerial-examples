@@ -4,6 +4,7 @@
 # FFT pipeline library
 add_library(fft_pipeline
     fft_pipeline.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(fft_pipeline
@@ -34,10 +35,12 @@ target_compile_options(fft_pipeline PRIVATE
 # Example executables
 add_executable(fft_example
     fft_example.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../channel_estimation/framework_stubs.cpp
 )
 
 add_executable(fft_processing_example
     fft_processing_example.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(fft_example
