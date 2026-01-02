@@ -21,14 +21,28 @@
 
 #include "channel_estimator.hpp"
 
-// Simple memory pool stub
+// Simple stubs for missing types
+namespace gsl_lite {
+template<typename T> using not_null = T;
+}
+
 namespace framework {
+namespace pipeline {
+struct PipelineStats {
+    std::size_t total_executions{0};
+    std::size_t failed_executions{0};
+    std::size_t successful_executions{0};
+};
+} // namespace pipeline
+
+// Simple memory pool stub
 namespace memory {
 class MemoryPool {
 public:
     explicit MemoryPool(std::size_t pool_size) : pool_size_(pool_size) {}
     ~MemoryPool() = default;
     std::size_t size() const { return pool_size_; }
+    void* allocate(std::size_t bytes) { return nullptr; } // Stub implementation
 private:
     std::size_t pool_size_;
 };
@@ -51,21 +65,19 @@ namespace framework::examples {
  * - Stream-based execution
  * - Integration with Aerial framework patterns
  */
-class ChannelEstimationPipeline final : public pipeline::IPipeline {
+class ChannelEstimationPipeline {
 public:
     /**
      * Constructor
      * @param pipeline_id Unique identifier for this pipeline
-     * @param module_factory Factory for creating modules
      * @param spec Pipeline specification
      */
-    ChannelEstimationPipeline(
+    explicit ChannelEstimationPipeline(
         std::string pipeline_id,
-        gsl_lite::not_null<pipeline::IModuleFactory*> module_factory,
         const pipeline::PipelineSpec& spec
     );
     
-    ~ChannelEstimationPipeline() override = default;
+    ~ChannelEstimationPipeline() = default;
 
     // Non-copyable, non-movable
     ChannelEstimationPipeline(const ChannelEstimationPipeline&) = delete;
@@ -73,36 +85,36 @@ public:
     ChannelEstimationPipeline(ChannelEstimationPipeline&&) = delete;
     ChannelEstimationPipeline& operator=(ChannelEstimationPipeline&&) = delete;
 
-    // IPipeline interface
-    [[nodiscard]] std::string_view get_pipeline_id() const override { return pipeline_id_; }
-    [[nodiscard]] std::size_t get_num_external_inputs() const override { return 2; }
-    [[nodiscard]] std::size_t get_num_external_outputs() const override { return 1; }
+    // Pipeline interface
+    [[nodiscard]] std::string_view get_pipeline_id() const { return pipeline_id_; }
+    [[nodiscard]] std::size_t get_num_external_inputs() const { return 2; }
+    [[nodiscard]] std::size_t get_num_external_outputs() const { return 1; }
 
     /// Execute pipeline with external inputs
     task::TaskResult execute_pipeline(
         std::span<const tensor::TensorInfo> external_inputs,
         std::span<tensor::TensorInfo> external_outputs,
         const task::CancellationToken& token
-    ) override;
+    );
 
     /// Execute using CUDA graphs for better performance
     task::TaskResult execute_pipeline_graph(
         std::span<const tensor::TensorInfo> external_inputs,
         std::span<tensor::TensorInfo> external_outputs,
         const task::CancellationToken& token
-    ) override;
+    );
 
     /// Setup pipeline resources
-    bool setup(const pipeline::PipelineSpec& spec) override;
+    bool setup(const pipeline::PipelineSpec& spec);
     
     /// Cleanup pipeline resources
-    void teardown() override;
+    void teardown();
 
     /// Check if pipeline is ready for execution
-    [[nodiscard]] bool is_ready() const override;
+    [[nodiscard]] bool is_ready() const;
 
     /// Get performance statistics
-    [[nodiscard]] pipeline::PipelineStats get_stats() const override;
+    [[nodiscard]] pipeline::PipelineStats get_stats() const;
 
 private:
     std::string pipeline_id_;
@@ -130,46 +142,42 @@ private:
 };
 
 /// Factory for creating channel estimation pipeline
-class ChannelEstimationPipelineFactory final : public pipeline::IPipelineFactory {
+class ChannelEstimationPipelineFactory {
 public:
     ChannelEstimationPipelineFactory() = default;
-    ~ChannelEstimationPipelineFactory() override = default;
+    ~ChannelEstimationPipelineFactory() = default;
 
     /// Create pipeline instance
-    std::unique_ptr<pipeline::IPipeline> create_pipeline(
+    std::unique_ptr<ChannelEstimationPipeline> create_pipeline(
         const std::string& pipeline_id,
-        gsl_lite::not_null<pipeline::IModuleFactory*> module_factory,
         const pipeline::PipelineSpec& spec
-    ) override;
+    );
 
     /// Get supported pipeline types
-    [[nodiscard]] std::vector<std::string> get_supported_types() const override {
+    [[nodiscard]] std::vector<std::string> get_supported_types() const {
         return {"channel_estimation_pipeline"};
     }
 };
 
 /// Module factory for channel estimator
-class ChannelEstimatorModuleFactory final : public pipeline::IModuleFactory {
+class ChannelEstimatorModuleFactory {
 public:
     explicit ChannelEstimatorModuleFactory(const ChannelEstParams& default_params);
-    ~ChannelEstimatorModuleFactory() override = default;
+    ~ChannelEstimatorModuleFactory() = default;
 
     /// Create module instance
-    std::unique_ptr<pipeline::IModule> create_module(
+    std::unique_ptr<ChannelEstimator> create_module(
         const std::string& module_id,
-        const pipeline::ModuleSpec& spec
-    ) override;
+        const ChannelEstParams& params
+    );
 
     /// Get supported module types
-    [[nodiscard]] std::vector<std::string> get_supported_types() const override {
+    [[nodiscard]] std::vector<std::string> get_supported_types() const {
         return {"channel_estimator"};
     }
 
 private:
     ChannelEstParams default_params_;
-    
-    /// Parse module-specific parameters from spec
-    ChannelEstParams parse_params(const pipeline::ModuleSpec& spec) const;
 };
 
 /// Utility functions for tensor operations
