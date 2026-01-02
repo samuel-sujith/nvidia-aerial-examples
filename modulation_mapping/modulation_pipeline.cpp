@@ -1,9 +1,8 @@
 #include "modulation_pipeline.hpp"
-#include <aerial/cuda_utils/CudaGraphHelper.hpp>
-#include <aerial/profiling/NvtxRange.hpp>
 #include <chrono>
 #include <algorithm>
 #include <sstream>
+#include <cuda_runtime.h>
 
 namespace modulation {
 
@@ -25,8 +24,9 @@ std::string_view ModulationPipeline::get_pipeline_id() const {
     return pipeline_id_;
 }
 
-bool ModulationPipeline::setup(const aerial::pipeline::PipelineSpec& spec) {
-    aerial::profiling::NvtxRange range("ModulationPipeline::setup");
+bool ModulationPipeline::setup(const ::framework::pipeline::PipelineSpec& spec) {
+    // Profiling removed for simplification
+    // aerial::profiling::NvtxRange range("ModulationPipeline::setup");
     
     try {
         // Set GPU device
@@ -49,7 +49,8 @@ bool ModulationPipeline::setup(const aerial::pipeline::PipelineSpec& spec) {
         }
         
         // Create memory pool
-        memory_pool_ = std::make_unique<aerial::memory::MemoryPool>(
+        // Memory pool creation removed for simplification
+        // memory_pool_ = std::make_unique<::framework::memory::MemoryPool>(
             config_.memory_pool_size);
         
         is_initialized_ = true;
@@ -62,7 +63,8 @@ bool ModulationPipeline::setup(const aerial::pipeline::PipelineSpec& spec) {
 }
 
 void ModulationPipeline::teardown() {
-    aerial::profiling::NvtxRange range("ModulationPipeline::teardown");
+    // Profiling removed for simplification
+    // aerial::profiling::NvtxRange range("ModulationPipeline::teardown");
     
     cleanup_cuda_resources();
     modulator_.reset();
@@ -164,15 +166,16 @@ bool ModulationPipeline::ensure_buffer_capacity(size_t required_bits, size_t req
     return true;
 }
 
-aerial::task::TaskResult ModulationPipeline::execute_pipeline(
-    std::span<const aerial::tensor::TensorInfo> inputs,
-    std::span<aerial::tensor::TensorInfo> outputs,
-    const aerial::task::CancellationToken& token) {
+::framework::task::TaskResult ModulationPipeline::execute_pipeline(
+    std::span<const ::framework::tensor::TensorInfo> inputs,
+    std::span<::framework::tensor::TensorInfo> outputs,
+    const ::framework::task::CancellationToken& token) {
     
-    aerial::profiling::NvtxRange range("ModulationPipeline::execute_pipeline");
+    // Profiling removed for simplification
+    // aerial::profiling::NvtxRange range("ModulationPipeline::execute_pipeline");
     
     if (!is_initialized_) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed, 
+        return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, 
                                       "Pipeline not initialized");
     }
     
@@ -259,7 +262,8 @@ aerial::task::TaskResult ModulationPipeline::execute_pipeline_graph(
         return execute_pipeline(inputs, outputs, token);
     }
     
-    aerial::profiling::NvtxRange range("ModulationPipeline::execute_pipeline_graph");
+    // Profiling removed for simplification
+    // aerial::profiling::NvtxRange range("ModulationPipeline::execute_pipeline_graph");
     
     const auto& input_tensor = inputs[0];
     size_t num_bits = input_tensor.num_elements();
