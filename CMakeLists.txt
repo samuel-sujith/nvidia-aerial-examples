@@ -104,6 +104,12 @@ else()
     message(STATUS "Using Quill stub")
 endif()
 
+# Global include directories - must be set before any subdirectories
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
+include_directories(${NAMEDTYPE_INCLUDE_DIR})
+include_directories(${QUILL_INCLUDE_DIR})
+
 # Set default Aerial Framework path if not provided
 if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
     set(AERIAL_FRAMEWORK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework-prod")
@@ -186,12 +192,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -I${NAMEDTYPE_INCLUDE_DIR} -I${QUILL_I
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89;90")
 endif()
-
-# Global include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
-include_directories(${CUDAToolkit_INCLUDE_DIRS})
-include_directories(${NAMEDTYPE_INCLUDE_DIR})
-include_directories(${QUILL_INCLUDE_DIR})
 
 # Common utilities library
 add_subdirectory(common)
