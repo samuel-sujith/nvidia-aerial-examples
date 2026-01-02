@@ -132,7 +132,7 @@ void demonstrate_basic_mimo_detection() {
     auto config = MIMOPipelineFactory::get_default_config(num_tx, num_rx);
     auto pipeline = MIMOPipelineFactory::create_pipeline(config);
     
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup MIMO pipeline\n";
         return;
@@ -213,7 +213,7 @@ void demonstrate_batch_mimo_processing() {
     auto config = MIMOPipelineFactory::get_high_performance_config(num_tx, num_rx);
     auto pipeline = MIMOPipelineFactory::create_pipeline(config);
     
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup batch MIMO pipeline\n";
         return;
@@ -292,7 +292,7 @@ void demonstrate_mimo_configurations() {
         auto config = MIMOPipelineFactory::get_default_config(num_tx, num_rx);
         auto pipeline = MIMOPipelineFactory::create_pipeline(config);
         
-        aerial::pipeline::PipelineSpec spec;
+        ::framework::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "  Failed to setup pipeline\n";
             continue;
@@ -351,7 +351,7 @@ void demonstrate_snr_performance() {
     auto config = MIMOPipelineFactory::get_default_config(num_tx, num_rx);
     auto pipeline = MIMOPipelineFactory::create_pipeline(config);
     
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup SNR analysis pipeline\n";
         return;
@@ -424,7 +424,7 @@ void demonstrate_streaming_mimo() {
     auto config = MIMOPipelineFactory::get_low_latency_config(num_tx, num_rx);
     auto pipeline = MIMOPipelineFactory::create_pipeline(config);
     
-    aerial::pipeline::PipelineSpec spec;
+    ::framework::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup streaming pipeline\n";
         return;

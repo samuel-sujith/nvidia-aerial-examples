@@ -14,8 +14,10 @@ namespace mimo_detection {
 /// MIMO detection algorithms
 enum class MIMOAlgorithm {
     ZF,              ///< Zero Forcing
+    ZeroForcing = ZF, ///< Alias for Zero Forcing
     MMSE,            ///< Minimum Mean Square Error  
     ML,              ///< Maximum Likelihood
+    MaximumLikelihood = ML, ///< Alias for Maximum Likelihood
     VBlast           ///< Vertical-Bell Labs Layered Space-Time
 };
 
@@ -97,8 +99,9 @@ public:
     static std::unique_ptr<MIMOPipeline> create_pipeline(
         const MIMOPipelineConfig& config = {});
     
-    static MIMOPipelineConfig get_default_config();
-    static MIMOPipelineConfig get_high_performance_config();
+    static MIMOPipelineConfig get_default_config(size_t num_tx = 4, size_t num_rx = 4);
+    static MIMOPipelineConfig get_high_performance_config(size_t num_tx = 8, size_t num_rx = 8);
+    static MIMOPipelineConfig get_low_latency_config(size_t num_tx = 2, size_t num_rx = 2);
 };
 
 } // namespace mimo_detection

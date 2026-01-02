@@ -51,15 +51,27 @@ std::unique_ptr<MIMOPipeline> MIMOPipelineFactory::create_pipeline(const MIMOPip
     return std::make_unique<MIMOPipeline>(config);
 }
 
-MIMOPipelineConfig MIMOPipelineFactory::get_default_config() {
-    return MIMOPipelineConfig{};
+MIMOPipelineConfig MIMOPipelineFactory::get_default_config(size_t num_tx, size_t num_rx) {
+    MIMOPipelineConfig config;
+    config.max_tx_antennas = num_tx;
+    config.max_rx_antennas = num_rx;
+    return config;
 }
 
-MIMOPipelineConfig MIMOPipelineFactory::get_high_performance_config() {
+MIMOPipelineConfig MIMOPipelineFactory::get_high_performance_config(size_t num_tx, size_t num_rx) {
     MIMOPipelineConfig config;
-    config.max_tx_antennas = 8;
-    config.max_rx_antennas = 8;
+    config.max_tx_antennas = num_tx;
+    config.max_rx_antennas = num_rx;
     config.enable_cuda_graphs = true;
+    return config;
+}
+
+MIMOPipelineConfig MIMOPipelineFactory::get_low_latency_config(size_t num_tx, size_t num_rx) {
+    MIMOPipelineConfig config;
+    config.max_tx_antennas = num_tx;
+    config.max_rx_antennas = num_rx;
+    config.enable_cuda_graphs = false; // Lower latency
+    config.num_cuda_streams = 1;
     return config;
 }
 
