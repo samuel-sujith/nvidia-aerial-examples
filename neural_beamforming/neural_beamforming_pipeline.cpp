@@ -1,14 +1,12 @@
 #include "neural_beamforming_pipeline.hpp"
-#include <aerial_framework/logging/logger.hpp>
-#include <aerial_framework/cuda_utils/cuda_error.hpp>
-#include <aerial_framework/tensor/tensor_factory.hpp>
 
 #include <fstream>
 #include <random>
 #include <algorithm>
 #include <chrono>
+#include <iostream>
 
-namespace aerial::examples::neural_beamforming {
+namespace neural_beamforming {
 
 namespace {
     // CUDA kernels for neural beamforming operations
@@ -475,4 +473,4 @@ NeuralBeamformingPipelineFactory::create_default_config(
     return config;
 }
 
-} // namespace aerial::examples::neural_beamforming
+} // namespace neural_beamforming
