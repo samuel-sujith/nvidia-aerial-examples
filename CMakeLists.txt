@@ -119,6 +119,8 @@ set(AERIAL_FRAMEWORK_INCLUDE_DIRS
     ${AERIAL_FRAMEWORK_ROOT}/include/utils
     ${AERIAL_FRAMEWORK_ROOT}/include/log
     ${AERIAL_FRAMEWORK_ROOT}/include/wise_enum
+    ${NAMEDTYPE_INCLUDE_DIR}
+    ${QUILL_INCLUDE_DIR}
 )
 
 # Find framework libraries
