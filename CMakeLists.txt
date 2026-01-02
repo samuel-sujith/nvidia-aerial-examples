@@ -169,10 +169,15 @@ if(BUILD_TESTS)
         )
     endif()
     
-    if(TARGET GTest::gtest_main OR TARGET gtest_main)
+    # Only add tests subdirectory if it exists
+    if((TARGET GTest::gtest_main OR TARGET gtest_main) AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
         add_subdirectory(tests)
     else()
-        message(WARNING "GTest not available, skipping unit tests")
+        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+            message(STATUS "No tests directory found, skipping unit tests")
+        else()
+            message(WARNING "GTest not available, skipping unit tests")
+        endif()
     endif()
 endif()
 
