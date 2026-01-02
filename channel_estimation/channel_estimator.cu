@@ -172,7 +172,6 @@ __global__ void channel_estimation_kernel(ChannelEstDescriptor* desc) {
 }
 
 } // namespace examples  
-} // namespace examples
 } // namespace framework
 
 // Class member function implementations
@@ -308,7 +307,7 @@ task::TaskResult ChannelEstimator::execute(
         cudaStream_t stream = 0; // In real implementation, extract from tensor context
         
         // Setup kernel (simplified - actual tensor data access would be different)
-        cudaError_t err = setup_channel_estimation(
+        cudaError_t err = this->setup_channel_estimation(
             nullptr, // reinterpret_cast<const cuComplex*>(rx_pilots_tensor.get_data_ptr()),
             nullptr, // reinterpret_cast<const cuComplex*>(tx_pilots_tensor.get_data_ptr()),
             nullptr, // reinterpret_cast<cuComplex*>(channel_est_tensor.get_data_ptr()),
@@ -323,7 +322,7 @@ task::TaskResult ChannelEstimator::execute(
         }
         
         // Launch kernel
-        err = launch_channel_estimation(stream);
+        err = this->launch_channel_estimation(stream);
         
         if (err != cudaSuccess) {
             return task::TaskResult(
