@@ -4,7 +4,6 @@
 #include "pipeline/ipipeline.hpp"
 #include "task/task.hpp"
 #include <cublas_v2.h>
-#include <cusolver_dense.h>
 #include <vector>
 #include <memory>
 #include <string>
