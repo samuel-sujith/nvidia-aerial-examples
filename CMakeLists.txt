@@ -148,8 +148,25 @@ if(NOT TARGET quill::quill)
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/sinks/JsonSink.h"
                 "#pragma once\n"
                 "namespace quill { namespace sinks { class JsonSink {}; } }\n"
+            )            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/sinks/RotatingFileSink.h"
+                "#pragma once\\n"
+                "namespace quill { namespace sinks { class RotatingFileSink {}; } }\\n"
+            )
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/sinks/RotatingJsonFileSink.h"
+                "#pragma once\\n"
+                "namespace quill { namespace sinks { class RotatingJsonFileSink {}; } }\\n"
             )
             
+            # Create std directory and headers
+            file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std")
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std/Pair.h"
+                "#pragma once\\n"
+                "namespace quill { namespace std { } }\\n"
+            )
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs/quill/std/Vector.h"
+                "#pragma once\\n"
+                "namespace quill { namespace std { } }\\n"
+            )            
             add_library(quill_stubs INTERFACE)
             target_include_directories(quill_stubs INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/quill_stubs")
             add_library(quill::quill ALIAS quill_stubs)
