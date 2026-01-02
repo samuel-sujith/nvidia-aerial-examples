@@ -12,9 +12,9 @@
 #include <memory>
 #include <string>
 
-#include "task/task.hpp"
-#include "tensor/tensor_info.hpp"
-#include "pipeline/imodule.hpp"
+#include <framework/task/task.hpp>
+#include <framework/tensor/tensor_info.hpp>
+#include <framework/pipeline/imodule.hpp>
 
 namespace aerial::examples {
 
