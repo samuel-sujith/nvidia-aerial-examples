@@ -17,6 +17,16 @@ else()
     set(FRAMEWORK_INCLUDE_BASE "${AERIAL_FRAMEWORK_ROOT}/include")
 endif()
 
+# Look for Quill headers in the framework installation
+set(FRAMEWORK_QUILL_INCLUDE "")
+if(EXISTS "${AERIAL_FRAMEWORK_ROOT}/include/quill")
+    set(FRAMEWORK_QUILL_INCLUDE "${AERIAL_FRAMEWORK_ROOT}/include")
+    message(STATUS "Found Quill headers in framework installation")
+elseif(EXISTS "${AERIAL_FRAMEWORK_ROOT}/external/quill/include")
+    set(FRAMEWORK_QUILL_INCLUDE "${AERIAL_FRAMEWORK_ROOT}/external/quill/include")
+    message(STATUS "Found external Quill headers in framework")
+endif()
+
 # Aerial Framework include directories
 set(AERIAL_FRAMEWORK_INCLUDE_DIRS
     ${FRAMEWORK_INCLUDE_BASE}
@@ -29,6 +39,11 @@ set(AERIAL_FRAMEWORK_INCLUDE_DIRS
     ${FRAMEWORK_INCLUDE_BASE}/net
     ${AERIAL_FRAMEWORK_ROOT}/include/wise_enum
 )
+
+# Add framework's Quill headers if found
+if(FRAMEWORK_QUILL_INCLUDE)
+    list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${FRAMEWORK_QUILL_INCLUDE})
+endif()
 
 # Find framework libraries with multiple naming conventions
 function(find_framework_library VAR_NAME)

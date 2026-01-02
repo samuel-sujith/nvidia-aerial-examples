@@ -78,15 +78,18 @@ if(NOT TARGET quill::quill)
         add_subdirectory(external/quill)
         message(STATUS "Using local external Quill library")
     else()
-        # Download via CPM
+        # Try older Quill version that matches framework expectations
         CPMAddPackage(
             NAME quill
             GITHUB_REPOSITORY odygrd/quill
-            GIT_TAG v8.1.0
+            GIT_TAG v4.4.0
             OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
             SYSTEM YES
         )
-        message(STATUS "Downloaded Quill via CPM")
+        if(NOT TARGET quill::quill AND TARGET quill)
+            add_library(quill::quill ALIAS quill)
+        endif()
+        message(STATUS "Downloaded Quill v4.4.0 via CPM for framework compatibility")
     endif()
 endif()
 
@@ -127,7 +130,17 @@ endif()
 
 # CUDA architecture configuration (align with aerial-framework)
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    # Use native if possible, fallback to modern architectures
     set(CMAKE_CUDA_ARCHITECTURES "native")
+    # If native detection fails, use these modern defaults
+    if(CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+        set(CMAKE_CUDA_ARCHITECTURES "75;80;86;89;90")
+    endif()
+endif()
+
+# Suppress deprecated GPU targets warning for older architectures
+if(CMAKE_CUDA_COMPILER_VERSION)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")
 endif()
 
 # Compiler flags (align with aerial-framework approach)
