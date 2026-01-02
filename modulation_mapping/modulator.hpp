@@ -13,6 +13,7 @@
 
 #include "task/task.hpp"
 #include "tensor/tensor_info.hpp"
+#include "task/task.hpp"
 // #include "pipeline/imodule.hpp"  // Not available in current framework
 
 namespace aerial::examples {
@@ -54,10 +55,10 @@ public:
     // Module interface
     std::string_view get_module_id() const { return module_id_; }
     
-    task::TaskResult execute(
-        const std::vector<tensor::TensorInfo>& inputs,
-        std::vector<tensor::TensorInfo>& outputs,
-        const task::CancellationToken& token
+    ::framework::task::TaskResult execute(
+        const std::vector<::framework::tensor::TensorInfo>& inputs,
+        std::vector<::framework::tensor::TensorInfo>& outputs,
+        const ::framework::task::CancellationToken& token
     );
 
     bool is_input_ready(std::size_t input_index) const;
@@ -77,9 +78,9 @@ private:
     cudaError_t launch_modulation_kernel(cudaStream_t stream);
 };
 
-/// CUDA kernel declarations
-__global__ void qam_modulation_kernel(ModulationDescriptor* desc);
-
 } // namespace aerial::examples
+
+/// CUDA kernel declarations (must be outside namespace for CUDA compilation)
+__global__ void qam_modulation_kernel(ModulationDescriptor* desc);
 
 #endif // AERIAL_EXAMPLES_MODULATOR_HPP
