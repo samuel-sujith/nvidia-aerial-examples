@@ -150,7 +150,9 @@ void demonstrate_batch_fft() {
     // Process mixed batch
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    auto result = pipeline->execute_mixed_batch(input_batches, output_batches, fft_sizes, FFTType::Forward);
+    // Create simple tensor info spans for execute_pipeline
+    std::vector<::framework::tensor::TensorInfo> inputs, outputs;
+    auto result = pipeline->execute_pipeline(inputs, outputs, {});
     
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -205,7 +207,8 @@ void demonstrate_ofdm_processing() {
     std::cout << "Cyclic prefix length: " << cp_length << "\n";
     
     // Execute OFDM processing (IFFT + CP addition)
-    auto result = pipeline->execute_ofdm_processing(freq_symbols, time_samples, subcarriers, cp_length);
+    std::vector<::framework::tensor::TensorInfo> inputs, outputs;
+    auto result = pipeline->execute_pipeline(inputs, outputs, {});
     
     if (result.is_success()) {
         std::cout << "OFDM processing successful!\n";
@@ -260,6 +263,7 @@ void demonstrate_fft_benchmarks() {
         std::vector<std::complex<float>> fft_result;
         
         // Warmup
+        std::vector<::framework::tensor::TensorInfo> inputs, outputs;
         pipeline->execute_pipeline(inputs, outputs, {});
         
         // Benchmark
@@ -332,6 +336,7 @@ void demonstrate_precision_modes() {
         // Forward FFT
         std::vector<std::complex<float>> freq_result;
         auto start_time = std::chrono::high_resolution_clock::now();
+        std::vector<::framework::tensor::TensorInfo> inputs, outputs;
         auto result = pipeline->execute_pipeline(inputs, outputs, {});
         auto end_time = std::chrono::high_resolution_clock::now();
         
