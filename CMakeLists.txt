@@ -122,8 +122,10 @@ endif()
 
 # Documentation
 find_package(Doxygen QUIET)
-if(Doxygen_FOUND)
+if(Doxygen_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/docs/CMakeLists.txt")
     add_subdirectory(docs)
+else()
+    message(STATUS "Doxygen not found or no docs CMakeLists.txt. Skipping documentation build.")
 endif()
 
 # Installation
