@@ -2,7 +2,7 @@
 
 #include "fft_module.hpp"
 #include "pipeline/ipipeline.hpp"
-#include "task/task_result.hpp"
+#include "task/task.hpp"
 #include <cufft.h>
 #include <vector>
 #include <memory>
