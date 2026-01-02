@@ -104,14 +104,14 @@ public:
     // MIMO-specific detection methods
     ::framework::task::TaskResult detect_symbols(
         const std::vector<std::complex<float>>& rx_signals,
-        const std::vector<std::complex<float>>& channel,
+        const std::vector<std::vector<std::complex<float>>>& channel,
         std::vector<std::complex<float>>& detected_symbols,
         MIMOAlgorithm algorithm = MIMOAlgorithm::MMSE,
         const ::framework::task::CancellationToken& token = {});
     
     ::framework::task::TaskResult detect_batch_symbols(
         const std::vector<std::vector<std::complex<float>>>& rx_batches,
-        const std::vector<std::vector<std::complex<float>>>& channel_batches,
+        const std::vector<std::vector<std::vector<std::complex<float>>>>& channel_batches,
         std::vector<std::vector<std::complex<float>>>& detected_batches,
         MIMOAlgorithm algorithm = MIMOAlgorithm::MMSE,
         const ::framework::task::CancellationToken& token = {});

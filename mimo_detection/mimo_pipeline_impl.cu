@@ -49,7 +49,7 @@ std::string_view MIMOPipeline::get_pipeline_id() const {
 
 ::framework::task::TaskResult MIMOPipeline::detect_symbols(
     const std::vector<std::complex<float>>& rx_signals,
-    const std::vector<std::complex<float>>& channel,
+    const std::vector<std::vector<std::complex<float>>>& channel,
     std::vector<std::complex<float>>& detected_symbols,
     MIMOAlgorithm algorithm,
     const ::framework::task::CancellationToken& token) {
@@ -73,7 +73,7 @@ std::string_view MIMOPipeline::get_pipeline_id() const {
 
 ::framework::task::TaskResult MIMOPipeline::detect_batch_symbols(
     const std::vector<std::vector<std::complex<float>>>& rx_batches,
-    const std::vector<std::vector<std::complex<float>>>& channel_batches,
+    const std::vector<std::vector<std::vector<std::complex<float>>>>& channel_batches,
     std::vector<std::vector<std::complex<float>>>& detected_batches,
     MIMOAlgorithm algorithm,
     const ::framework::task::CancellationToken& token) {
