@@ -41,6 +41,7 @@ struct MIMOPipelineConfig {
 /// Pipeline statistics
 struct MIMOPipelineStats {
     uint64_t total_symbols_processed{0};
+    uint64_t total_symbols_detected{0}; // Alias for compatibility
     uint64_t total_batches_processed{0};
     uint64_t total_execution_time_us{0};
     uint64_t last_execution_time_us{0};
@@ -52,9 +53,17 @@ struct MIMOPipelineStats {
         return (static_cast<double>(total_symbols_processed) / total_execution_time_us);
     }
     
+    double average_throughput_msymbols_per_sec() const {
+        return average_throughput_msps(); // Alias for compatibility
+    }
+    
     double average_latency_us() const {
         if (total_batches_processed == 0) return 0.0;
         return static_cast<double>(total_execution_time_us) / total_batches_processed;
+    }
+    
+    double average_detection_time_us() const {
+        return average_latency_us(); // Alias for compatibility
     }
 };
 
@@ -91,6 +100,21 @@ public:
     
     MIMOPipelineStats get_mimo_stats() const { return stats_; }
     const MIMOPipelineConfig& get_config() const { return config_; }
+    
+    // MIMO-specific detection methods
+    ::framework::task::TaskResult detect_symbols(
+        const std::vector<std::complex<float>>& rx_signals,
+        const std::vector<std::complex<float>>& channel,
+        std::vector<std::complex<float>>& detected_symbols,
+        MIMOAlgorithm algorithm = MIMOAlgorithm::MMSE,
+        const ::framework::task::CancellationToken& token = {});
+    
+    ::framework::task::TaskResult detect_batch_symbols(
+        const std::vector<std::vector<std::complex<float>>>& rx_batches,
+        const std::vector<std::vector<std::complex<float>>>& channel_batches,
+        std::vector<std::vector<std::complex<float>>>& detected_batches,
+        MIMOAlgorithm algorithm = MIMOAlgorithm::MMSE,
+        const ::framework::task::CancellationToken& token = {});
 };
 
 /// Factory for creating MIMO pipelines
