@@ -147,7 +147,6 @@ if(NOT TARGET quill::quill)
                 "#pragma once\n"
                 "namespace quill {\n"
                 "  class Frontend {};\n"
-                "  template<typename T> class FrontendImpl {};\n"
                 "}\n"
             )
             
@@ -156,7 +155,6 @@ if(NOT TARGET quill::quill)
                 "#pragma once\n"
                 "namespace quill {\n"
                 "  class Logger {};\n"
-                "  template<typename T> class LoggerImpl {};\n"
                 "}\n"
             )
             
