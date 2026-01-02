@@ -27,25 +27,63 @@ option(ENABLE_DEBUG_INFO "Enable debug information" OFF)
 # Find required packages
 find_package(CUDAToolkit REQUIRED)
 
-# Aerial Framework (assumed to be installed or available)
-find_path(AERIAL_FRAMEWORK_INCLUDE_DIRS
-    NAMES aerial/framework.hpp aerial/pipeline.hpp
-    PATHS ${AERIAL_FRAMEWORK_ROOT}/include
-    PATH_SUFFIXES include
+# Set default Aerial Framework path if not provided
+if(NOT DEFINED AERIAL_FRAMEWORK_ROOT)
+    set(AERIAL_FRAMEWORK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../aerial-framework-prod")
+endif()
+
+# Aerial Framework include directories
+set(AERIAL_FRAMEWORK_INCLUDE_DIRS
+    ${AERIAL_FRAMEWORK_ROOT}/include
+    ${AERIAL_FRAMEWORK_ROOT}/include/pipeline
+    ${AERIAL_FRAMEWORK_ROOT}/include/tensor
+    ${AERIAL_FRAMEWORK_ROOT}/include/task
+    ${AERIAL_FRAMEWORK_ROOT}/include/memory
+    ${AERIAL_FRAMEWORK_ROOT}/include/utils
+    ${AERIAL_FRAMEWORK_ROOT}/include/log
+)
+
+# Find framework libraries
+find_library(FRAMEWORK_PIPELINE_LIB
+    NAMES framework-pipeline
+    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
     REQUIRED
 )
 
-find_library(AERIAL_FRAMEWORK_LIBRARIES
-    NAMES aerial_framework libaerial_framework
+find_library(FRAMEWORK_TENSOR_LIB
+    NAMES framework-tensor
     PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
-    PATH_SUFFIXES lib lib64
+    REQUIRED
+)
+
+find_library(FRAMEWORK_UTILS_LIB
+    NAMES framework-utils
+    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
+    REQUIRED
+)
+
+find_library(FRAMEWORK_TENSORRT_LIB
+    NAMES framework-tensorrt
+    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
+    REQUIRED
+)
+
+find_library(FRAMEWORK_TASK_LIB
+    NAMES task
+    PATHS ${AERIAL_FRAMEWORK_ROOT}/lib
     REQUIRED
 )
 
 # Create imported target for Aerial Framework
 add_library(aerial_framework INTERFACE)
 target_include_directories(aerial_framework INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
-target_link_libraries(aerial_framework INTERFACE ${AERIAL_FRAMEWORK_LIBRARIES})
+target_link_libraries(aerial_framework INTERFACE 
+    ${FRAMEWORK_PIPELINE_LIB}
+    ${FRAMEWORK_TENSOR_LIB}
+    ${FRAMEWORK_UTILS_LIB}
+    ${FRAMEWORK_TENSORRT_LIB}
+    ${FRAMEWORK_TASK_LIB}
+)
 
 # Compiler flags
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
