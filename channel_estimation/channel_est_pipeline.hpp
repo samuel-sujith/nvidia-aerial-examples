@@ -121,7 +121,7 @@ private:
     std::unique_ptr<ChannelEstimator> channel_estimator_;
     
     // Memory management
-    std::unique_ptr<framework::memory::MemoryPool> memory_pool_;
+    std::unique_ptr<::framework::memory::MemoryPool> memory_pool_;
     
     // CUDA graph support
     cudaGraph_t cuda_graph_{};
@@ -184,23 +184,23 @@ private:
 namespace tensor_utils {
 
 /// Allocate GPU tensor for complex data
-framework::tensor::TensorInfo allocate_complex_tensor(
+::framework::tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
-    framework::memory::MemoryPool& pool
+    ::framework::memory::MemoryPool& pool
 );
 
 /// Copy tensor data asynchronously
 cudaError_t copy_tensor_async(
-    const tensor::TensorInfo& src,
-    tensor::TensorInfo& dst,
+    const ::framework::tensor::TensorInfo& src,
+    ::framework::tensor::TensorInfo& dst,
     cudaStream_t stream
 );
 
 /// Validate tensor dimensions for channel estimation
 bool validate_channel_est_tensors(
-    const tensor::TensorInfo& rx_tensor,
-    const tensor::TensorInfo& tx_tensor,
-    const tensor::TensorInfo& output_tensor,
+    const ::framework::tensor::TensorInfo& rx_tensor,
+    const ::framework::tensor::TensorInfo& tx_tensor,
+    const ::framework::tensor::TensorInfo& output_tensor,
     const ChannelEstParams& params
 );
 

@@ -86,7 +86,7 @@ void ChannelEstimationPipeline::setup_memory_pool(const pipeline::PipelineSpec& 
     size_t total_memory = (channel_memory + pilot_memory * 2) * 2; // Double buffer
     
     // Create memory pool (implementation depends on framework memory management)
-    memory_pool_ = std::make_unique<memory::MemoryPool>(total_memory);
+    memory_pool_ = std::make_unique<::framework::memory::MemoryPool>(total_memory);
 }
 
 void ChannelEstimationPipeline::setup_cuda_graph() {
@@ -242,12 +242,12 @@ std::unique_ptr<ChannelEstimator> ChannelEstimatorModuleFactory::create_module(
 // Tensor utility implementations
 namespace tensor_utils {
 
-framework::tensor::TensorInfo allocate_complex_tensor(
+::framework::tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
-    framework::memory::MemoryPool& pool
+    ::framework::memory::MemoryPool& pool
 ) {
     // Stub implementation - would normally allocate from pool
-    framework::tensor::TensorInfo tensor;
+    ::framework::tensor::TensorInfo tensor;
     // In real implementation:
     // - Calculate size from dimensions
     // - Allocate from pool
@@ -256,8 +256,8 @@ framework::tensor::TensorInfo allocate_complex_tensor(
 }
 
 cudaError_t copy_tensor_async(
-    const framework::tensor::TensorInfo& src,
-    framework::tensor::TensorInfo& dst,
+    const ::framework::tensor::TensorInfo& src,
+    ::framework::tensor::TensorInfo& dst,
     cudaStream_t stream
 ) {
     // Stub implementation - would copy tensor data
@@ -266,9 +266,9 @@ cudaError_t copy_tensor_async(
 }
 
 bool validate_channel_est_tensors(
-    const framework::tensor::TensorInfo& rx_tensor,
-    const framework::tensor::TensorInfo& tx_tensor,
-    const framework::tensor::TensorInfo& output_tensor,
+    const ::framework::tensor::TensorInfo& rx_tensor,
+    const ::framework::tensor::TensorInfo& tx_tensor,
+    const ::framework::tensor::TensorInfo& output_tensor,
     const ChannelEstParams& params
 ) {
     // Validate rx tensor: [num_pilots]
