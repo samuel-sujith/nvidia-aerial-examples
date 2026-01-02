@@ -92,16 +92,20 @@ target_link_libraries(channel_estimation_example
     CUDA::cudart
 )
 
-# Performance test executable
-add_executable(channel_estimation_benchmark
-    channel_estimation_benchmark.cpp  # Additional benchmark file
-)
-
-target_link_libraries(channel_estimation_benchmark
-    channel_est_pipeline
-    channel_estimator
-    CUDA::cudart
-)
+# Performance test executable (using existing example file)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/channel_estimation_benchmark.cpp")
+    add_executable(channel_estimation_benchmark
+        channel_estimation_benchmark.cpp
+    )
+    
+    target_link_libraries(channel_estimation_benchmark
+        channel_est_pipeline
+        channel_estimator
+        CUDA::cudart
+    )
+else()
+    message(STATUS "channel_estimation_benchmark.cpp not found, skipping benchmark build")
+endif()
 
 # Unit tests (if testing framework is available)
 option(BUILD_TESTS "Build unit tests" ON)
