@@ -44,9 +44,9 @@ ChannelEstimationPipeline::ChannelEstimationPipeline(
     
     // Create channel estimator module with default params
     ChannelEstParams default_params{};
-    default_params.num_antennas = 4;
-    default_params.num_subcarriers = 512;
-    default_params.num_pilots = 64;
+    default_params.num_rx_antennas = 4;
+    default_params.num_resource_blocks = 25;
+    default_params.pilot_spacing = 4;
     
 }
 
@@ -296,11 +296,6 @@ bool validate_channel_est_tensors(
     }
     
     // Skip data type validation for stub implementation
-    return true;
-        output_tensor.element_type() != tensor::ElementType::COMPLEX_FLOAT32) {
-        return false;
-    }
-    
     return true;
 }
 
