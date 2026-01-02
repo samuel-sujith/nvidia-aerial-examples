@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <map>
 
 namespace fft_processing {
 
@@ -85,11 +86,11 @@ struct FFTPipelineStats {
 };
 
 /// High-performance FFT pipeline with GPU optimization
-class FFTPipeline final : public aerial::pipeline::IPipeline {
+class FFTPipeline final : public ::framework::pipeline::IPipeline {
 private:
     FFTPipelineConfig config_;
     std::unique_ptr<FFTProcessor> fft_processor_;
-    std::unique_ptr<aerial::memory::MemoryPool> memory_pool_;
+    // Simplified memory management for stub environment
     
     // cuFFT resources
     std::map<size_t, cufftHandle> fft_plans_;
@@ -124,21 +125,21 @@ public:
     std::size_t get_num_external_inputs() const override { return 1; }
     std::size_t get_num_external_outputs() const override { return 1; }
     
-    aerial::task::TaskResult execute_pipeline(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
+    ::framework::task::TaskResult execute_pipeline(
+        std::span<const ::framework::tensor::TensorInfo> inputs,
+        std::span<::framework::tensor::TensorInfo> outputs,
+        const ::framework::task::CancellationToken& token) override;
     
-    aerial::task::TaskResult execute_pipeline_graph(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
+    ::framework::task::TaskResult execute_pipeline_graph(
+        std::span<const ::framework::tensor::TensorInfo> inputs,
+        std::span<::framework::tensor::TensorInfo> outputs,
+        const ::framework::task::CancellationToken& token) override;
     
-    bool setup(const aerial::pipeline::PipelineSpec& spec) override;
+    bool setup(const ::framework::pipeline::PipelineSpec& spec) override;
     void teardown() override;
     bool is_ready() const override { return is_initialized_; }
     
-    aerial::pipeline::PipelineStats get_stats() const override;
+    ::framework::pipeline::PipelineStats get_stats() const override;
     
     // FFT-specific interface
     FFTPipelineStats get_fft_stats() const { return stats_; }

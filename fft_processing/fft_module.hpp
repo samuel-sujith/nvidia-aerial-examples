@@ -34,7 +34,7 @@ struct FFTParams {
 };
 
 /// cuFFT-based FFT processing module
-class FFTModule final : public pipeline::IModule {
+class FFTModule final : public ::framework::pipeline::IModule {
 public:
     explicit FFTModule(
         const std::string& module_id,
@@ -46,10 +46,10 @@ public:
     // IModule interface
     std::string_view get_module_id() const override { return module_id_; }
     
-    task::TaskResult execute(
-        const std::vector<tensor::TensorInfo>& inputs,
-        std::vector<tensor::TensorInfo>& outputs,
-        const task::CancellationToken& token
+    ::framework::task::TaskResult execute(
+        const std::vector<::framework::tensor::TensorInfo>& inputs,
+        std::vector<::framework::tensor::TensorInfo>& outputs,
+        const ::framework::task::CancellationToken& token
     ) override;
 
     bool is_input_ready(std::size_t input_index) const override;
