@@ -54,19 +54,19 @@ public:
         const MIMOParams& params
     );
     
-    ~MIMODetector() override;
+    ~MIMODetector();
 
     // IModule interface
-    std::string_view get_module_id() const override { return module_id_; }
+    std::string_view get_module_id() const { return module_id_; }
     
-    task::TaskResult execute(
-        const std::vector<tensor::TensorInfo>& inputs,
-        std::vector<tensor::TensorInfo>& outputs,
-        const task::CancellationToken& token
-    ) override;
+    ::framework::task::TaskResult execute(
+        const std::vector<::framework::tensor::TensorInfo>& inputs,
+        std::vector<::framework::tensor::TensorInfo>& outputs,
+        const ::framework::task::CancellationToken& token = {}
+    );
 
-    bool is_input_ready(std::size_t input_index) const override;
-    bool is_output_ready(std::size_t output_index) const override;
+    bool is_input_ready(std::size_t input_index) const;
+    bool is_output_ready(std::size_t output_index) const;
 
 private:
     std::string module_id_;
