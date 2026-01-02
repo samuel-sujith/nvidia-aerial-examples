@@ -40,19 +40,23 @@ function(find_framework_library VAR_NAME)
         ${AERIAL_FRAMEWORK_ROOT}/framework/*/
     )
     
+    unset(${VAR_NAME} CACHE)  # Clear cache to ensure fresh search
+    
     foreach(LIB_NAME ${LIB_NAMES})
         find_library(${VAR_NAME}
             NAMES ${LIB_NAME}
             PATHS ${LIB_PATHS}
             PATH_SUFFIXES lib lib64
+            NO_DEFAULT_PATH
         )
         if(${VAR_NAME})
+            message(STATUS "Found library ${LIB_NAME}: ${${VAR_NAME}}")
             break()
         endif()
     endforeach()
     
     if(NOT ${VAR_NAME})
-        message(WARNING "Could not find library: ${LIB_NAMES}")
+        message(STATUS "Library not found: ${LIB_NAMES}")
     endif()
 endfunction()
 
@@ -68,18 +72,26 @@ find_framework_library(FRAMEWORK_NET_LIB framework-net libframework-net net)
 
 # Create imported targets
 function(create_framework_target TARGET_NAME LIBRARY_VAR)
+    set(FULL_TARGET_NAME "framework_${TARGET_NAME}")
+    
     if(${LIBRARY_VAR})
-        add_library(framework::${TARGET_NAME} SHARED IMPORTED)
-        set_target_properties(framework::${TARGET_NAME} PROPERTIES
+        add_library(${FULL_TARGET_NAME} UNKNOWN IMPORTED)
+        set_target_properties(${FULL_TARGET_NAME} PROPERTIES
             IMPORTED_LOCATION ${${LIBRARY_VAR}}
-            INTERFACE_INCLUDE_DIRECTORIES "${AERIAL_FRAMEWORK_INCLUDE_DIRS}"
         )
+        target_include_directories(${FULL_TARGET_NAME} INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
+        
+        # Create the :: alias
+        add_library(framework::${TARGET_NAME} ALIAS ${FULL_TARGET_NAME})
         message(STATUS "Created target framework::${TARGET_NAME} -> ${${LIBRARY_VAR}}")
     else()
         # Create stub interface target if library not found
-        add_library(framework::${TARGET_NAME} INTERFACE)
-        target_include_directories(framework::${TARGET_NAME} INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
-        message(WARNING "Created stub target framework::${TARGET_NAME} (library not found)")
+        add_library(${FULL_TARGET_NAME} INTERFACE)
+        target_include_directories(${FULL_TARGET_NAME} INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
+        
+        # Create the :: alias  
+        add_library(framework::${TARGET_NAME} ALIAS ${FULL_TARGET_NAME})
+        message(STATUS "Created stub target framework::${TARGET_NAME} (library not found)")
     endif()
 endfunction()
 
@@ -93,41 +105,52 @@ create_framework_target(memory FRAMEWORK_MEMORY_LIB)
 create_framework_target(log FRAMEWORK_LOG_LIB)
 create_framework_target(net FRAMEWORK_NET_LIB)
 
-# Set up dependencies between framework targets
-if(TARGET framework::pipeline)
-    target_link_libraries(framework::pipeline INTERFACE 
-        framework::tensor framework::utils framework::memory)
+# Set up dependencies between framework targets (only if they exist)
+if(TARGET framework::pipeline AND TARGET framework::tensor)
+    target_link_libraries(framework_pipeline INTERFACE 
+        framework::tensor framework::utils)
 endif()
 
-if(TARGET framework::tensor)
-    target_link_libraries(framework::tensor INTERFACE 
-        framework::utils framework::memory)
+if(TARGET framework::tensor AND TARGET framework::utils)
+    target_link_libraries(framework_tensor INTERFACE 
+        framework::utils)
 endif()
 
-if(TARGET framework::tensorrt)
-    target_link_libraries(framework::tensorrt INTERFACE 
+if(TARGET framework::tensorrt AND TARGET framework::tensor)
+    target_link_libraries(framework_tensorrt INTERFACE 
         framework::tensor framework::utils)
 endif()
 
 # Create convenience target that links everything
-add_library(framework::all INTERFACE)
-target_link_libraries(framework::all INTERFACE
-    framework::pipeline
-    framework::tensor  
-    framework::utils
-    framework::tensorrt
-    framework::task
-    framework::memory
-    framework::log
-    framework::net
-    NamedType
-    quill::quill
-    CUDA::cudart
-    CUDA::cuda_driver
-)
+add_library(framework_all INTERFACE)
+
+# Link available targets
+set(_available_targets)
+foreach(_target pipeline tensor utils tensorrt task memory log net)
+    if(TARGET framework::${_target})
+        list(APPEND _available_targets framework::${_target})
+    endif()
+endforeach()
+
+if(_available_targets)
+    target_link_libraries(framework_all INTERFACE
+        ${_available_targets}
+        NamedType
+        quill::quill
+        CUDA::cudart
+        CUDA::cuda_driver
+    )
+endif()
+
+# Create the :: alias for the convenience target
+add_library(framework::all ALIAS framework_all)
 
 # Export variables for compatibility
-set(AERIAL_FRAMEWORK_TARGETS 
-    framework::pipeline framework::tensor framework::utils 
-    framework::tensorrt framework::task framework::memory 
-    framework::log framework::net)
+set(AERIAL_FRAMEWORK_TARGETS)
+foreach(_target pipeline tensor utils tensorrt task memory log net)
+    if(TARGET framework::${_target})
+        list(APPEND AERIAL_FRAMEWORK_TARGETS framework::${_target})
+    endif()
+endforeach()
+
+message(STATUS "Available framework targets: ${AERIAL_FRAMEWORK_TARGETS}")
