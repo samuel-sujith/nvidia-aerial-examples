@@ -25,12 +25,10 @@
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-#include <cusolverDn.h>
 
 #include "mimo_detector.hpp"
 #include "mimo_pipeline.hpp"
-#include "tensor/tensor_info.hpp"
-#include "pipeline/pipeline_spec.hpp"
+#include "../framework_stubs.hpp"
 
 using namespace mimo_detection;
 
