@@ -227,13 +227,10 @@ cudaError_t ChannelEstimator::configure_kernel_launch() {
     launch_config_->kernel_params.kernelParams = launch_config_->kernel_args;
     launch_config_->kernel_params.extra = nullptr;
     
-    // Get kernel function
-    cudaError_t err = cudaGetFuncBySymbol(
-        &(launch_config_->kernel_params.func),
-        reinterpret_cast<void*>(channel_estimation_kernel)
-    );
+    // Set kernel function directly - cudaGetFuncBySymbol is for driver API
+    launch_config_->kernel_params.func = reinterpret_cast<void*>(channel_estimation_kernel);
     
-    return err;
+    return cudaSuccess;
 }
 
 cudaError_t ChannelEstimator::setup_channel_estimation(
