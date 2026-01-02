@@ -140,13 +140,13 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_DOCDIR}
 )
 
-# Package configuration
+# Package configuration (simplified)
 include(CMakePackageConfigHelpers)
 
-configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/AerialExamplesConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/AerialExamplesConfig.cmake
-    INSTALL_DESTINATION lib/cmake/AerialExamples
+# Create a simple config file
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/AerialExamplesConfig.cmake"
+    "# Aerial Examples Package Configuration\n"
+    "find_dependency(CUDAToolkit REQUIRED)\n"
 )
 
 write_basic_package_version_file(

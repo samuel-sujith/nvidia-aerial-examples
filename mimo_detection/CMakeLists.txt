@@ -92,7 +92,9 @@ install(FILES
     DESTINATION include/mimo_detection
 )
 
-# Tests (if enabled)
-if(BUILD_TESTS)
+# Tests (if enabled and directory exists)
+if(BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
     add_subdirectory(tests)
+else()
+    message(STATUS "No tests found for mimo_detection module")
 endif()

@@ -89,7 +89,9 @@ install(FILES
     DESTINATION include/fft_processing
 )
 
-# Tests (if enabled)
-if(BUILD_TESTS)
+# Tests (if enabled and directory exists)
+if(BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
     add_subdirectory(tests)
+else()
+    message(STATUS "No tests found for fft_processing module")
 endif()
