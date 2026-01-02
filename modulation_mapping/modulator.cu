@@ -133,10 +133,6 @@ QAMModulator::QAMModulator(
     allocate_gpu_memory();
 }
 
-QAMModulator::~QAMModulator() {
-    deallocate_gpu_memory();
-}
-
 void QAMModulator::allocate_gpu_memory() {
     cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(::ModulationDescriptor));
     if (err != cudaSuccess) {
@@ -169,18 +165,18 @@ cudaError_t QAMModulator::launch_modulation_kernel(cudaStream_t stream) {
     return cudaGetLastError();
 }
 
-task::TaskResult QAMModulator::execute(
-    const std::vector<tensor::TensorInfo>& inputs,
-    std::vector<tensor::TensorInfo>& outputs,
-    const task::CancellationToken& token
+::framework::task::TaskResult QAMModulator::execute(
+    const std::vector<::framework::tensor::TensorInfo>& inputs,
+    std::vector<::framework::tensor::TensorInfo>& outputs,
+    const ::framework::task::CancellationToken& token
 ) {
     if (token.is_cancellation_requested()) {
-        return task::TaskResult(task::TaskStatus::Cancelled, "Task cancelled");
+        return ::framework::task::TaskResult(::framework::task::TaskStatus::Cancelled, "Task cancelled");
     }
     
     try {
         if (inputs.empty() || outputs.empty()) {
-            return task::TaskResult(task::TaskStatus::Failed, "Invalid inputs/outputs");
+            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Invalid inputs/outputs");
         }
         
         // Setup descriptor
@@ -194,23 +190,23 @@ task::TaskResult QAMModulator::execute(
         // Setup and launch kernel
         cudaError_t err = setup_modulation_kernel(stream);
         if (err != cudaSuccess) {
-            return task::TaskResult(task::TaskStatus::Failed, "Setup failed");
+            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Setup failed");
         }
         
         err = launch_modulation_kernel(stream);
         if (err != cudaSuccess) {
-            return task::TaskResult(task::TaskStatus::Failed, "Kernel launch failed");
+            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Kernel launch failed");
         }
         
         err = cudaStreamSynchronize(stream);
         if (err != cudaSuccess) {
-            return task::TaskResult(task::TaskStatus::Failed, "Synchronization failed");
+            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Synchronization failed");
         }
         
-        return task::TaskResult(task::TaskStatus::Completed, "Modulation completed");
+        return ::framework::task::TaskResult(::framework::task::TaskStatus::Completed, "Modulation completed");
         
     } catch (const std::exception& e) {
-        return task::TaskResult(task::TaskStatus::Failed, e.what());
+        return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, e.what());
     }
 }
 
