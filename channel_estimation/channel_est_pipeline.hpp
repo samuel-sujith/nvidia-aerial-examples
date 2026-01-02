@@ -184,7 +184,7 @@ private:
 namespace tensor_utils {
 
 /// Allocate GPU tensor for complex data
-tensor::TensorInfo allocate_complex_tensor(
+framework::tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
     framework::memory::MemoryPool& pool
 );

@@ -168,8 +168,7 @@ task::TaskResult ChannelEstimationPipeline::execute_internal(
         );
         
         stats_.total_executions++;
-        stats_.total_execution_time_us += duration.count();
-        stats_.last_execution_time_us = duration.count();
+        // Additional timing stats could be added to PipelineStats struct
         
         if (result.is_success()) {
             stats_.successful_executions++;
@@ -240,24 +239,15 @@ std::unique_ptr<ChannelEstimator> ChannelEstimatorModuleFactory::create_module(
     return std::make_unique<ChannelEstimator>(module_id, params);
 }
 
-
-    //     std::string alg = spec.parameters.at("algorithm");
-    //     if (alg == "mmse") params.algorithm = ChannelEstAlgorithm::MMSE;
-    //     else if (alg == "least_squares") params.algorithm = ChannelEstAlgorithm::LEAST_SQUARES;
-    // }
-    
-    return params;
-}
-
 // Tensor utility implementations
 namespace tensor_utils {
 
-tensor::TensorInfo allocate_complex_tensor(
+framework::tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
-    memory::MemoryPool& pool
+    framework::memory::MemoryPool& pool
 ) {
     // Stub implementation - would normally allocate from pool
-    tensor::TensorInfo tensor;
+    framework::tensor::TensorInfo tensor;
     // In real implementation:
     // - Calculate size from dimensions
     // - Allocate from pool
@@ -266,8 +256,8 @@ tensor::TensorInfo allocate_complex_tensor(
 }
 
 cudaError_t copy_tensor_async(
-    const tensor::TensorInfo& src,
-    tensor::TensorInfo& dst,
+    const framework::tensor::TensorInfo& src,
+    framework::tensor::TensorInfo& dst,
     cudaStream_t stream
 ) {
     // Stub implementation - would copy tensor data
@@ -276,9 +266,9 @@ cudaError_t copy_tensor_async(
 }
 
 bool validate_channel_est_tensors(
-    const tensor::TensorInfo& rx_tensor,
-    const tensor::TensorInfo& tx_tensor,
-    const tensor::TensorInfo& output_tensor,
+    const framework::tensor::TensorInfo& rx_tensor,
+    const framework::tensor::TensorInfo& tx_tensor,
+    const framework::tensor::TensorInfo& output_tensor,
     const ChannelEstParams& params
 ) {
     // Validate rx tensor: [num_pilots]
