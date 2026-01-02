@@ -151,7 +151,7 @@ int run_modulation_example() {
         std::vector<std::complex<float>> output_symbols;
         
         perf.start_measurement("Modulation Execution");
-        auto result = pipeline->modulate_bits(input_bits, output_symbols, ModulationOrder::QAM16);
+        auto result = pipeline->modulate_bits(input_bits, output_symbols, ModulationScheme::QAM_16);
         perf.end_measurement("Modulation Execution");
         
         if (!result.is_success()) {
@@ -174,8 +174,8 @@ int run_modulation_example() {
         auto pipeline_stats = pipeline->get_modulation_stats();
         std::cout << "\n=== Pipeline Statistics ===\n";
         std::cout << "Total symbols processed: " << pipeline_stats.total_symbols_processed << "\n";
-        std::cout << "Average modulation time: " << pipeline_stats.average_modulation_time_us() << " μs\n";
-        std::cout << "Peak throughput: " << pipeline_stats.peak_throughput_msymbols_per_sec() << " Msymbols/sec\n";
+        std::cout << "Average latency: " << pipeline_stats.average_latency_us() << " μs\n";
+        std::cout << "Average throughput: " << pipeline_stats.average_throughput_msps() << " Msymbols/sec\n";
         
         // Step 7: Cleanup
         pipeline->teardown();
