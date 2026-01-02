@@ -325,8 +325,7 @@ int run_channel_estimation_example(const ExampleConfig& config) {
         std::cout << "Failed executions: " << pipeline_stats.failed_executions << "\n";
         std::cout << "Success rate: " << 
             (100.0 * pipeline_stats.successful_executions / pipeline_stats.total_executions) << "%\n";
-        std::cout << "Average execution time: " << 
-            (pipeline_stats.total_execution_time_us / pipeline_stats.total_executions) << " μs\n";
+        std::cout << "Average execution time: Not available in stub implementation\n";
         
         // Step 12: Cleanup
         perf.start_measurement("Cleanup");
