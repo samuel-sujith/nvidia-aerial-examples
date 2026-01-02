@@ -31,7 +31,7 @@ target_compile_options(neural_beamforming_pipeline PRIVATE
 
 # Neural Beamforming Simple Example
 add_executable(neural_beamforming_example
-    neural_beamforming_example.cpp
+    neural_beamforming_example_simple.cpp
     framework_stubs.cpp
 )
 
@@ -44,7 +44,7 @@ target_link_libraries(neural_beamforming_example
 
 # Comprehensive ML Example
 add_executable(neural_beamforming_ml_example
-    neural_beamforming_ml_example.cpp
+    neural_beamforming_ml_example_simple.cpp
     framework_stubs.cpp
 )
 
