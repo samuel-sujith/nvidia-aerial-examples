@@ -89,3 +89,23 @@ add_custom_target(neural_beamforming_export
     DEPENDS neural_beamforming_ml_example
     COMMENT "Exporting TensorRT models for deployment"
 )
+
+# Unit tests (if testing framework is available)
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS AND TARGET GTest::gtest_main)
+    add_executable(neural_beamforming_tests
+        tests/beamforming_test.cpp
+        tests/pipeline_test.cpp
+    )
+    
+    target_link_libraries(neural_beamforming_tests
+        neural_beamforming_pipeline
+        neural_beamformer
+        GTest::gtest_main
+        CUDA::cudart
+    )
+    
+    # Register with CTest
+    include(GoogleTest)
+    gtest_discover_tests(neural_beamforming_tests)
+endif()

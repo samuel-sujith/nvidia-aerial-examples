@@ -92,8 +92,9 @@ install(FILES
     DESTINATION include/mimo_detection
 )
 
-# Tests (if enabled)
-if(BUILD_TESTS AND TARGET GTest::gtest_main AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+# Unit tests (if testing framework is available)
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS AND TARGET GTest::gtest_main)
     add_executable(mimo_detection_tests
         tests/mimo_test.cpp
         tests/pipeline_test.cpp
@@ -109,6 +110,4 @@ if(BUILD_TESTS AND TARGET GTest::gtest_main AND EXISTS "${CMAKE_CURRENT_SOURCE_D
     # Register with CTest
     include(GoogleTest)
     gtest_discover_tests(mimo_detection_tests)
-else()
-    message(STATUS "No tests directory found or GTest not available, skipping unit tests")
 endif()
