@@ -22,6 +22,20 @@ target_link_libraries(common_utils INTERFACE
 # Link Quill if available
 if(TARGET quill::quill)
     target_link_libraries(common_utils INTERFACE quill::quill)
+    # Also add Quill include directories directly for CUDA compilation
+    get_target_property(QUILL_INCLUDES quill::quill INTERFACE_INCLUDE_DIRECTORIES)
+    if(QUILL_INCLUDES)
+        foreach(INCLUDE_DIR ${QUILL_INCLUDES})
+            string(REGEX MATCH "\\$<BUILD_INTERFACE:([^>]+)>" MATCH_RESULT "${INCLUDE_DIR}")
+            if(CMAKE_MATCH_1)
+                target_include_directories(common_utils INTERFACE ${CMAKE_MATCH_1})
+                message(STATUS "Added Quill include to common_utils: ${CMAKE_MATCH_1}")
+            elseif(NOT INCLUDE_DIR MATCHES "\\$<.*>")
+                target_include_directories(common_utils INTERFACE ${INCLUDE_DIR})
+                message(STATUS "Added Quill include to common_utils: ${INCLUDE_DIR}")
+            endif()
+        endforeach()
+    endif()
 endif()
 
 # Install headers

@@ -25,6 +25,23 @@ target_include_directories(channel_estimator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Add Quill include directories directly for CUDA compilation
+if(TARGET quill::quill)
+    get_target_property(QUILL_INCLUDES quill::quill INTERFACE_INCLUDE_DIRECTORIES)
+    if(QUILL_INCLUDES)
+        foreach(INCLUDE_DIR ${QUILL_INCLUDES})
+            string(REGEX MATCH "\\$<BUILD_INTERFACE:([^>]+)>" MATCH_RESULT "${INCLUDE_DIR}")
+            if(CMAKE_MATCH_1)
+                target_include_directories(channel_estimator PUBLIC ${CMAKE_MATCH_1})
+                message(STATUS "Added Quill include to channel_estimator: ${CMAKE_MATCH_1}")
+            elseif(NOT INCLUDE_DIR MATCHES "\\$<.*>")
+                target_include_directories(channel_estimator PUBLIC ${INCLUDE_DIR})
+                message(STATUS "Added Quill include to channel_estimator: ${INCLUDE_DIR}")
+            endif()
+        endforeach()
+    endif()
+endif()
+
 # Set CUDA properties
 set_property(TARGET channel_estimator PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
