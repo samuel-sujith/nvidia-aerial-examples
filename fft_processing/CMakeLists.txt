@@ -90,6 +90,22 @@ install(FILES
 )
 
 # Tests (if enabled)
-if(BUILD_TESTS)
-    add_subdirectory(tests)
+if(BUILD_TESTS AND TARGET GTest::gtest_main AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    add_executable(fft_processing_tests
+        tests/fft_test.cpp
+        tests/pipeline_test.cpp
+    )
+    
+    target_link_libraries(fft_processing_tests
+        fft_pipeline
+        fft_processor
+        GTest::gtest_main
+        CUDA::cudart
+    )
+    
+    # Register with CTest
+    include(GoogleTest)
+    gtest_discover_tests(fft_processing_tests)
+else()
+    message(STATUS "No tests directory found or GTest not available, skipping unit tests")
 endif()
