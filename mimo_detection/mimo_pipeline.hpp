@@ -1,12 +1,13 @@
 #pragma once
 
 #include "mimo_detector.hpp"
-#include "pipeline/ipipeline.hpp"
-#include "task/task.hpp"
+#include <aerial/pipeline/IPipeline.hpp>
+#include <aerial/memory/MemoryPool.hpp>
+#include <aerial/task/TaskResult.hpp>
 #include <cublas_v2.h>
+#include <cusolver_dense.h>
 #include <vector>
 #include <memory>
-#include <map>
 #include <string>
 
 namespace mimo_detection {
@@ -27,7 +28,7 @@ struct MIMOPipelineConfig {
     size_t max_symbols_per_batch{1000}; ///< Max symbols per processing batch
     size_t max_batch_size{64};      ///< Maximum batch size
     MIMOAlgorithm detection_algorithm{MIMOAlgorithm::MMSE};
-    int modulation_order{16}; // Simple int instead of complex enum
+    ModulationOrder modulation_order{ModulationOrder::QAM16};
     bool enable_cuda_graphs{true};
     bool enable_profiling{false};
     int gpu_device_id{0};
@@ -78,15 +79,15 @@ struct MIMOPipelineStats {
 };
 
 /// High-performance MIMO detection pipeline with GPU optimization
-class MIMOPipeline {
+class MIMOPipeline final : public aerial::pipeline::IPipeline {
 private:
     MIMOPipelineConfig config_;
-    // std::unique_ptr<MIMODetector> mimo_detector_; // Simplified - removed complex dependency
-    // std::unique_ptr<aerial::memory::MemoryPool> memory_pool_; // Removed complex dependency
+    std::unique_ptr<MIMODetector> mimo_detector_;
+    std::unique_ptr<aerial::memory::MemoryPool> memory_pool_;
     
     // CUDA resources
     cublasHandle_t cublas_handle_;
-    // cusolverDnHandle_t cusolver_handle_; // Removed cusolver dependency
+    cusolverDnHandle_t cusolver_handle_;
     cudaStream_t streams_[4];
     cudaEvent_t events_[8];
     
@@ -120,14 +121,14 @@ public:
     ~MIMOPipeline();
     
     // IPipeline interface
-    std::string_view get_pipeline_id() const;
-    std::size_t get_num_external_inputs() const { return 2; } // Channel + received symbols
-    std::size_t get_num_external_outputs() const { return 1; }
+    std::string_view get_pipeline_id() const override;
+    std::size_t get_num_external_inputs() const override { return 2; } // Channel + received symbols
+    std::size_t get_num_external_outputs() const override { return 1; }
     
-    ::framework::task::TaskResult execute_pipeline(
-        std::span<const ::framework::tensor::TensorInfo> inputs,
-        std::span<::framework::tensor::TensorInfo> outputs,
-        const ::framework::task::CancellationToken& token);
+    aerial::task::TaskResult execute_pipeline(
+        std::span<const aerial::tensor::TensorInfo> inputs,
+        std::span<aerial::tensor::TensorInfo> outputs,
+        const aerial::task::CancellationToken& token) override;
     
     aerial::task::TaskResult execute_pipeline_graph(
         std::span<const aerial::tensor::TensorInfo> inputs,

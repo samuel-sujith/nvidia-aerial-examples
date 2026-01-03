@@ -7,9 +7,12 @@
 #include <algorithm>
 #include <iomanip>
 
-#include "neural_beamforming_pipeline_simple.hpp"
+#include "neural_beamforming_pipeline.hpp"
+#include <aerial_framework/memory/memory_pool_factory.hpp>
+#include <aerial_framework/cuda_utils/cuda_context.hpp>
+#include <aerial_framework/tensor/tensor_factory.hpp>
 
-using namespace neural_beamforming;
+using namespace aerial::examples::neural_beamforming;
 
 /**
  * @brief Comprehensive neural beamforming example with ML training pipeline

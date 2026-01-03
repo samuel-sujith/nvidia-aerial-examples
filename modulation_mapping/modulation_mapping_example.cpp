@@ -28,9 +28,9 @@
 #include "modulator.hpp"
 #include "modulation_pipeline.hpp"
 #include "tensor/tensor_info.hpp"
-#include "pipeline/types.hpp"
+#include "pipeline/pipeline_spec.hpp"
 
-using namespace modulation;
+using namespace modulation_mapping;
 
 /**
  * Generate synthetic bit streams for testing
@@ -118,7 +118,7 @@ int run_modulation_example() {
         perf.start_measurement("Pipeline Creation");
         
         ModulationPipelineConfig pipeline_config;
-        pipeline_config.modulation_order = ModulationScheme::QAM_16;
+        pipeline_config.modulation_orders = {ModulationOrder::QAM16};
         pipeline_config.max_batch_size = 1024;
         pipeline_config.enable_cuda_graphs = true;
         
@@ -127,7 +127,7 @@ int run_modulation_example() {
         perf.end_measurement("Pipeline Creation");
         
         // Step 2: Setup pipeline
-        ::framework::pipeline::PipelineSpec spec;
+        aerial::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "Failed to setup modulation pipeline\n";
             return 1;
@@ -151,7 +151,7 @@ int run_modulation_example() {
         std::vector<std::complex<float>> output_symbols;
         
         perf.start_measurement("Modulation Execution");
-        auto result = pipeline->modulate_bits(input_bits, output_symbols);
+        auto result = pipeline->modulate_bits(input_bits, output_symbols, ModulationOrder::QAM16);
         perf.end_measurement("Modulation Execution");
         
         if (!result.is_success()) {
@@ -174,8 +174,8 @@ int run_modulation_example() {
         auto pipeline_stats = pipeline->get_modulation_stats();
         std::cout << "\n=== Pipeline Statistics ===\n";
         std::cout << "Total symbols processed: " << pipeline_stats.total_symbols_processed << "\n";
-        std::cout << "Average latency: " << pipeline_stats.average_latency_us() << " μs\n";
-        std::cout << "Average throughput: " << pipeline_stats.average_throughput_msps() << " Msymbols/sec\n";
+        std::cout << "Average modulation time: " << pipeline_stats.average_modulation_time_us() << " μs\n";
+        std::cout << "Peak throughput: " << pipeline_stats.peak_throughput_msymbols_per_sec() << " Msymbols/sec\n";
         
         // Step 7: Cleanup
         pipeline->teardown();

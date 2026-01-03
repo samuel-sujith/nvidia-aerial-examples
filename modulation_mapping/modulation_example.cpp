@@ -12,7 +12,7 @@ void demonstrate_basic_modulation() {
     
     // Create configuration
     ModulationPipelineConfig config;
-    config.modulation_order = ModulationScheme::QAM_16;
+    config.modulation_order = ModulationOrder::QAM16;
     config.max_batch_size = 1000;
     config.enable_cuda_graphs = true;
     
@@ -20,7 +20,7 @@ void demonstrate_basic_modulation() {
     auto pipeline = ModulationPipelineFactory::create_pipeline(config);
     
     // Setup pipeline
-    ::framework::pipeline::PipelineSpec spec;
+    aerial::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup modulation pipeline\n";
         return;
@@ -68,10 +68,10 @@ void demonstrate_batch_processing() {
     std::cout << "=== Batch Processing Demo ===\n";
     
     // High performance configuration
-    auto config = ModulationPipelineFactory::get_high_performance_config(ModulationScheme::QAM_64);
+    auto config = ModulationPipelineFactory::get_high_performance_config(ModulationOrder::QAM64);
     auto pipeline = ModulationPipelineFactory::create_pipeline(config);
     
-    ::framework::pipeline::PipelineSpec spec;
+    aerial::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup pipeline\n";
         return;
@@ -133,11 +133,11 @@ void demonstrate_batch_processing() {
 void demonstrate_modulation_orders() {
     std::cout << "=== Modulation Orders Demo ===\n";
     
-    std::vector<ModulationScheme> orders = {
-        ModulationScheme::QPSK,
-        ModulationScheme::QAM_16,
-        ModulationScheme::QAM_64,
-        ModulationScheme::QAM_256
+    std::vector<ModulationOrder> orders = {
+        ModulationOrder::QPSK,
+        ModulationOrder::QAM16,
+        ModulationOrder::QAM64,
+        ModulationOrder::QAM256
     };
     
     std::vector<std::string> order_names = {
@@ -156,7 +156,7 @@ void demonstrate_modulation_orders() {
         auto config = ModulationPipelineFactory::get_default_config(orders[i]);
         auto pipeline = ModulationPipelineFactory::create_pipeline(config);
         
-        ::framework::pipeline::PipelineSpec spec;
+        aerial::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "  Failed to setup pipeline\n";
             continue;
@@ -203,9 +203,9 @@ void demonstrate_performance_comparison() {
     std::cout << "=== Performance Comparison Demo ===\n";
     
     std::vector<std::pair<std::string, ModulationPipelineConfig>> configs = {
-        {"Default", ModulationPipelineFactory::get_default_config(ModulationScheme::QAM_16)},
-        {"High Performance", ModulationPipelineFactory::get_high_performance_config(ModulationScheme::QAM_16)},
-        {"Low Latency", ModulationPipelineFactory::get_low_latency_config(ModulationScheme::QAM_16)}
+        {"Default", ModulationPipelineFactory::get_default_config(ModulationOrder::QAM16)},
+        {"High Performance", ModulationPipelineFactory::get_high_performance_config(ModulationOrder::QAM16)},
+        {"Low Latency", ModulationPipelineFactory::get_low_latency_config(ModulationOrder::QAM16)}
     };
     
     // Test data
@@ -221,7 +221,7 @@ void demonstrate_performance_comparison() {
         
         auto pipeline = ModulationPipelineFactory::create_pipeline(config);
         
-        ::framework::pipeline::PipelineSpec spec;
+        aerial::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "  Failed to setup pipeline\n";
             continue;

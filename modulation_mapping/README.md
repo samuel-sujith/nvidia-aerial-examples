@@ -1,23 +1,23 @@
 # Modulation Mapping Pipeline
 
-This module demonstrates GPU-accelerated QAM (Quadrature Amplitude Modulation) constellation mapping using CUDA kernels with framework compatibility patterns. It provides a functional pipeline implementation for converting bit streams into complex-valued symbols for 5G NR communication systems.
+This module demonstrates GPU-accelerated QAM (Quadrature Amplitude Modulation) constellation mapping using the NVIDIA Aerial Framework. It provides a complete pipeline implementation for converting bit streams into complex-valued symbols for 5G NR communication systems.
 
 ## Features
 
 - **Multiple Modulation Schemes**: QPSK, 16-QAM, 64-QAM, and 256-QAM support
-- **High-Performance GPU Implementation**: Optimized CUDA kernels with efficient memory access
-- **Batch Processing**: Efficient processing of large symbol vectors
-- **Factory Pattern**: Flexible configuration system for different modulation orders
-- **Symbol Generation**: Constellation mapping and symbol validation
-- **Performance Monitoring**: Throughput and timing measurements
-- **Framework Compatibility**: Uses framework patterns without full installation
+- **High-Performance GPU Implementation**: Optimized CUDA kernels with shared memory utilization
+- **Batch Processing**: Efficient processing of large bit streams
+- **Factory Pattern**: Flexible configuration system for different performance profiles
+- **Symbol Validation**: Comprehensive constellation point verification
+- **Performance Monitoring**: Detailed throughput and latency statistics
+- **Memory Pool Integration**: Efficient GPU memory management through Aerial framework
 
 ## Architecture
 
 ```
 Modulation Mapping Pipeline
 ├── Modulator               # Core modulation algorithms and CUDA kernels
-├── ModulationPipeline     # Simplified pipeline orchestration
+├── ModulationPipeline     # Pipeline orchestration and memory management  
 ├── ModulationPipelineFactory # Factory for creating configured pipelines
 └── Examples               # Demonstration applications
 ```
@@ -26,76 +26,28 @@ Modulation Mapping Pipeline
 
 ### Modulator (`modulator.hpp`, `modulator.cu`)
 - GPU kernel implementations for each modulation scheme
-- Optimized constellation lookup tables
-- Efficient memory access patterns for high throughput
-- Batch processing support with configurable parameters
+- Optimized constellation lookup tables in shared memory
+- Coalesced memory access patterns for high throughput
+- Batch processing support with configurable block sizes
 
 ### ModulationPipeline (`modulation_pipeline.hpp/cpp`)
-- Simplified pipeline interface implementation
-- GPU memory allocation and management
-- CUDA stream coordination for execution
+- Pipeline interface implementation following Aerial framework patterns
+- Resource lifecycle management and GPU memory allocation
+- CUDA stream coordination for overlapped execution
 - Performance statistics collection and reporting
 
 ### Factory Pattern (`modulation_pipeline.hpp`)
 ```cpp
 // Available configurations
-auto default_config = ModulationPipelineFactory::get_default_config();
-
-// Specify modulation order
-config.modulation_order = ModulationOrder::QAM16;
-config.batch_size = 1024;
-
-// Create pipeline instance
-auto pipeline = ModulationPipelineFactory::create_pipeline(config);
+auto default_config = ModulationPipelineFactory::get_default_config({ModulationOrder::QAM16});
+auto high_perf_config = ModulationPipelineFactory::get_high_performance_config({ModulationOrder::QAM64});
+auto low_latency_config = ModulationPipelineFactory::get_low_latency_config({ModulationOrder::QPSK});
 ```
 
-## Building and Running
+## Building
 
 ### Prerequisites
 - CUDA Toolkit 11.8+
-- CMake 3.20+
-- C++20 compatible compiler
-- GPU with compute capability 7.0+
-
-### Build
-```bash
-# From repository root
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-
-# Run the examples
-./modulation_mapping/modulation_example
-./modulation_mapping/modulation_mapping_example
-```
-
-### Example Output
-```
-Modulation Mapping Pipeline Example
-==================================
-Initializing modulation pipeline...
-Pipeline initialized successfully
-
-Testing QPSK modulation...
-QPSK: 10,000 symbols generated in 0.08ms
-  - Throughput: 125,000 symbols/sec
-  - Bits per symbol: 2
-
-Testing 16-QAM modulation...
-16-QAM: 10,000 symbols generated in 0.12ms
-  - Throughput: 83,333 symbols/sec  
-  - Bits per symbol: 4
-
-Testing 64-QAM modulation...
-64-QAM: 10,000 symbols generated in 0.15ms
-  - Throughput: 66,667 symbols/sec
-  - Bits per symbol: 6
-
-Testing 256-QAM modulation...
-256-QAM: 10,000 symbols generated in 0.18ms
-  - Throughput: 55,556 symbols/sec
-  - Bits per symbol: 8
-```
 - cuRAND library (for test data generation)
 - NVIDIA Aerial Framework
 

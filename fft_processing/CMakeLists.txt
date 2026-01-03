@@ -1,5 +1,8 @@
 # FFT Processing Pipeline Example
-# Inherits standards and CUDA setup from parent CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+
+# Find required packages
+find_package(CUDAToolkit REQUIRED)
 
 # FFT pipeline library
 add_library(fft_pipeline
@@ -7,25 +10,25 @@ add_library(fft_pipeline
 )
 
 target_link_libraries(fft_pipeline
-    CUDA::cudart
-    CUDA::cufft
-    CUDA::curand
-    common_utils  # This now includes framework targets
+    PUBLIC
+        CUDA::cudart
+        CUDA::cufft
+        CUDA::curand
+        aerial_framework
+        common_utils
 )
-
-# Link Quill directly if available (needed for framework headers)
-if(TARGET quill::quill)
-    target_link_libraries(fft_pipeline quill::quill)
-endif()
 
 target_include_directories(fft_pipeline
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/stubs
+        ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
 )
 
-# Inherit properties from parent - no need to set standards again
 set_target_properties(fft_pipeline PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION ON
 )
 
@@ -46,27 +49,21 @@ add_executable(fft_processing_example
 )
 
 target_link_libraries(fft_example
-    fft_pipeline
-    CUDA::cudart
-    CUDA::cufft
-    common_utils
-)
-
-target_include_directories(fft_example
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/stubs
+        fft_pipeline
+        CUDA::cudart
+        CUDA::cufft
+        aerial_framework
+        common_utils
 )
 
 target_link_libraries(fft_processing_example
-    fft_pipeline
-    CUDA::cudart
-    CUDA::cufft
-    common_utils
-)
-
-target_include_directories(fft_processing_example
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/stubs
+        fft_pipeline
+        CUDA::cudart
+        CUDA::cufft
+        aerial_framework
+        common_utils
 )
 
 set_target_properties(fft_example PROPERTIES
@@ -92,9 +89,7 @@ install(FILES
     DESTINATION include/fft_processing
 )
 
-# Tests (if enabled and directory exists)
-if(BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+# Tests (if enabled)
+if(BUILD_TESTS)
     add_subdirectory(tests)
-else()
-    message(STATUS "No tests found for fft_processing module")
 endif()

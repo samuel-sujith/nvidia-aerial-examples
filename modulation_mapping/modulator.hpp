@@ -13,8 +13,9 @@
 
 #include "task/task.hpp"
 #include "tensor/tensor_info.hpp"
-#include "task/task.hpp"
-// #include "pipeline/imodule.hpp"  // Not available in current framework
+#include "pipeline/imodule.hpp"
+
+namespace aerial::examples {
 
 /// QAM modulation schemes supported
 enum class ModulationScheme {
@@ -36,50 +37,50 @@ struct ModulationParams {
 struct ModulationDescriptor {
     const uint32_t* input_bits;        ///< Input bit stream
     cuComplex* output_symbols;         ///< Output modulated symbols
-    const ModulationParams* params;   ///< Modulation parameters
+    ModulationParams* params;          ///< Modulation parameters
     int total_symbols;                 ///< Total number of symbols
 };
 
-/// CUDA kernel declaration
-__global__ void qam_modulation_kernel(ModulationDescriptor* desc);
-
-namespace aerial::examples {
-
 /// QAM modulator module
-class QAMModulator {
+class QAMModulator final : public pipeline::IModule {
 public:
     explicit QAMModulator(
         const std::string& module_id,
-        const ::ModulationParams& params
+        const ModulationParams& params
     );
     
-    ~QAMModulator() = default;
+    ~QAMModulator() override;
 
-    // Module interface
-    std::string_view get_module_id() const { return module_id_; }
+    // IModule interface
+    std::string_view get_module_id() const override { return module_id_; }
     
-    ::framework::task::TaskResult execute(
-        const std::vector<::framework::tensor::TensorInfo>& inputs,
-        std::vector<::framework::tensor::TensorInfo>& outputs,
-        const ::framework::task::CancellationToken& token
-    );
+    task::TaskResult execute(
+        const std::vector<tensor::TensorInfo>& inputs,
+        std::vector<tensor::TensorInfo>& outputs,
+        const task::CancellationToken& token
+    ) override;
 
-    bool is_input_ready(std::size_t input_index) const;
-    bool is_output_ready(std::size_t output_index) const;
+    bool is_input_ready(std::size_t input_index) const override;
+    bool is_output_ready(std::size_t output_index) const override;
 
 private:
     std::string module_id_;
-    ::ModulationParams params_;
+    ModulationParams params_;
     
     // GPU resources
-    ::ModulationDescriptor* d_descriptor_;
-    ::ModulationDescriptor h_descriptor_;
+    ModulationDescriptor* d_descriptor_;
+    ModulationDescriptor h_descriptor_;
     
     void allocate_gpu_memory();
     void deallocate_gpu_memory();
     cudaError_t setup_modulation_kernel(cudaStream_t stream);
     cudaError_t launch_modulation_kernel(cudaStream_t stream);
 };
+
+/// CUDA kernel declarations
+extern "C" {
+    __global__ void qam_modulation_kernel(ModulationDescriptor* desc);
+}
 
 } // namespace aerial::examples
 

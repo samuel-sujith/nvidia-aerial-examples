@@ -1,14 +1,13 @@
 #pragma once
 
 #include "fft_module.hpp"
-#include "pipeline/ipipeline.hpp"
-#include "task/task.hpp"
+#include <aerial/pipeline/IPipeline.hpp>
+#include <aerial/memory/MemoryPool.hpp>
+#include <aerial/task/TaskResult.hpp>
 #include <cufft.h>
 #include <vector>
 #include <memory>
 #include <string>
-#include <map>
-#include <map>
 
 namespace fft_processing {
 
@@ -44,8 +43,9 @@ struct FFTPipelineConfig {
     bool use_multiple_gpus{false};
     std::vector<int> gpu_device_ids{0};
     
-    // cuFFT specific options  
+    // cuFFT specific options
     bool enable_autotuning{true};
+    cufftXtWorkAreaPolicy workspace_policy{CUFFT_WORKSPACE_MINIMAL};
 };
 
 /// Performance statistics for FFT pipeline
@@ -86,11 +86,11 @@ struct FFTPipelineStats {
 };
 
 /// High-performance FFT pipeline with GPU optimization
-class FFTPipeline {
+class FFTPipeline final : public aerial::pipeline::IPipeline {
 private:
     FFTPipelineConfig config_;
-    FFTPipelineStats stats_;
-    bool is_initialized_{false};
+    std::unique_ptr<FFTProcessor> fft_processor_;
+    std::unique_ptr<aerial::memory::MemoryPool> memory_pool_;
     
     // cuFFT resources
     std::map<size_t, cufftHandle> fft_plans_;
@@ -121,25 +121,25 @@ public:
     ~FFTPipeline();
     
     // IPipeline interface
-    std::string_view get_pipeline_id() const;
-    std::size_t get_num_external_inputs() const { return 1; }
-    std::size_t get_num_external_outputs() const { return 1; }
+    std::string_view get_pipeline_id() const override;
+    std::size_t get_num_external_inputs() const override { return 1; }
+    std::size_t get_num_external_outputs() const override { return 1; }
     
-    ::framework::task::TaskResult execute_pipeline(
-        std::span<const ::framework::tensor::TensorInfo> inputs,
-        std::span<::framework::tensor::TensorInfo> outputs,
-        const ::framework::task::CancellationToken& token);
+    aerial::task::TaskResult execute_pipeline(
+        std::span<const aerial::tensor::TensorInfo> inputs,
+        std::span<aerial::tensor::TensorInfo> outputs,
+        const aerial::task::CancellationToken& token) override;
     
-    ::framework::task::TaskResult execute_pipeline_graph(
-        std::span<const ::framework::tensor::TensorInfo> inputs,
-        std::span<::framework::tensor::TensorInfo> outputs,
-        const ::framework::task::CancellationToken& token);
+    aerial::task::TaskResult execute_pipeline_graph(
+        std::span<const aerial::tensor::TensorInfo> inputs,
+        std::span<aerial::tensor::TensorInfo> outputs,
+        const aerial::task::CancellationToken& token) override;
     
-    bool setup(const ::framework::pipeline::PipelineSpec& spec);
-    void teardown();
-    bool is_ready() const { return is_initialized_; }
+    bool setup(const aerial::pipeline::PipelineSpec& spec) override;
+    void teardown() override;
+    bool is_ready() const override { return is_initialized_; }
     
-    ::framework::pipeline::PipelineStats get_stats() const;
+    aerial::pipeline::PipelineStats get_stats() const override;
     
     // FFT-specific interface
     FFTPipelineStats get_fft_stats() const { return stats_; }

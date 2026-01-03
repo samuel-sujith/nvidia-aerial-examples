@@ -1,90 +1,53 @@
 # MIMO Detection Pipeline
 
-This module demonstrates GPU-accelerated MIMO (Multiple Input Multiple Output) signal detection using CUDA and cuBLAS integration with framework compatibility stubs. It provides a simplified but functional pipeline implementation for multi-antenna signal detection algorithms.
+This module demonstrates GPU-accelerated MIMO (Multiple Input Multiple Output) signal detection using the NVIDIA Aerial Framework with cuBLAS and cuSOLVER integration. It provides a complete pipeline implementation for multi-antenna signal detection algorithms.
 
 ## Features
 
-- **Multiple Detection Algorithms**: Zero Forcing (ZF), MMSE detection methods
+- **Multiple Detection Algorithms**: Zero Forcing (ZF), MMSE, and Maximum Likelihood (ML) detection
 - **Flexible MIMO Configurations**: Support for 2x2, 4x4, 8x8, and custom antenna arrays
-- **GPU Acceleration**: CUDA implementation using cuBLAS for matrix operations
-- **Simplified Processing**: Streamlined detection for demonstration purposes
+- **GPU Acceleration**: High-performance implementation using cuBLAS and cuSOLVER
+- **Real-time Processing**: Low-latency detection for streaming applications
 - **Batch Processing**: Efficient processing of multiple symbol vectors
-- **Framework Stubs**: Compatible with framework patterns without full installation
-- **Performance Monitoring**: Basic statistics and timing measurements
+- **Quality Metrics**: Symbol Error Rate (SER) and Error Vector Magnitude (EVM) calculation
+- **SNR Analysis**: Performance evaluation across different signal-to-noise ratios
 
 ## Architecture
 
 ```
 MIMO Detection Pipeline
-├── MIMODetector         # Core detection algorithm interface
-├── MIMOPipeline        # Simplified pipeline orchestration
+├── MIMODetector         # Core detection algorithms (ZF, MMSE, ML)
+├── MIMOPipeline        # Pipeline orchestration and resource management
 ├── MIMOPipelineFactory # Factory for creating configured pipelines
-├── Framework Stubs     # Compatibility layer for framework patterns
 └── Examples            # Demonstration applications
 ```
 
 ## Key Components
 
 ### MIMODetector (`mimo_detector.hpp`)
-- Detection algorithm interface definition
-- Zero Forcing and MMSE detection method enums
-- Configuration structures for antenna parameters
-- Algorithm selection and validation
+- Matrix inversion and pseudo-inverse operations
+- Zero Forcing detection implementation
+- MMSE detection with noise variance estimation
+- Maximum Likelihood detection for optimal performance
+- Channel preprocessing and conditioning
 
 ### MIMOPipeline (`mimo_pipeline.hpp`, `mimo_pipeline_impl.cu`)
-- Simplified pipeline interface implementation
-- GPU memory management for antenna arrays
-- Basic detection processing with cuBLAS integration
-- Performance statistics and timing measurements
-- Framework compatibility using stubs
+- Pipeline interface implementation
+- GPU memory management for large antenna arrays
+- Streaming detection for real-time applications
+- Performance monitoring and statistics collection
 
 ### Factory Pattern (`mimo_pipeline.hpp`)
 ```cpp
 // Available configurations
 auto default_config = MIMOPipelineFactory::get_default_config(4, 4);
 auto high_perf_config = MIMOPipelineFactory::get_high_performance_config(8, 8);
-
-// Create pipeline instance
-auto pipeline = MIMOPipelineFactory::create_pipeline(config);
+auto low_latency_config = MIMOPipelineFactory::get_low_latency_config(2, 4);
 ```
 
-## Building and Running
+## Building
 
 ### Prerequisites
-- CUDA Toolkit 11.8+
-- CMake 3.20+
-- C++20 compatible compiler
-- GPU with compute capability 7.0+
-- cuBLAS library
-
-### Build
-```bash
-# From repository root
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-
-# Run the examples
-./mimo_detection/mimo_example
-./mimo_detection/mimo_detection_example
-```
-
-### Example Output
-```
-MIMO Detection Pipeline Example
-==============================
-Configuration: 4x4 MIMO, ZF Detection
-
-Processing batch of 1000 symbols...
-Detection completed in 0.45ms
-  - Throughput: 2,222 symbol vectors/sec
-  - Total symbols detected: 4000
-  - Average detection time: 0.11μs per symbol
-
-Algorithm comparison:
-  ZF Detection:   0.45ms (2,222 vectors/sec)
-  MMSE Detection: 0.62ms (1,613 vectors/sec)
-```
 - CUDA Toolkit 11.8+
 - cuBLAS library
 - cuSOLVER library

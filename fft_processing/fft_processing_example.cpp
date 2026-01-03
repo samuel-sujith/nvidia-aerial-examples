@@ -29,7 +29,7 @@
 #include "fft_module.hpp"
 #include "fft_pipeline.hpp"
 #include "tensor/tensor_info.hpp"
-#include "pipeline/ipipeline.hpp"
+#include "pipeline/pipeline_spec.hpp"
 
 using namespace fft_processing;
 
@@ -149,7 +149,7 @@ struct ExampleConfig {
     size_t cp_length{72};
     int num_iterations{100};
     bool use_cuda_graphs{true};
-    FFTPrecision precision{FFTPrecision::Float32};
+    FFTPrecision precision{FFTPrecision::Single};
     std::string test_type{"ofdm"};
 };
 
@@ -220,7 +220,7 @@ int run_fft_example(const ExampleConfig& config) {
         perf.end_measurement("Pipeline Creation");
         
         // Step 2: Setup pipeline
-        ::framework::pipeline::PipelineSpec spec;
+        aerial::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "Failed to setup FFT pipeline\n";
             return 1;
@@ -271,24 +271,23 @@ int run_fft_example(const ExampleConfig& config) {
         perf.end_measurement("GPU Memory Setup");
         
         // Step 5: Setup tensor info objects
-        std::vector<::framework::tensor::TensorInfo> inputs(1);
-        std::vector<::framework::tensor::TensorInfo> outputs(1);
+        std::vector<tensor::TensorInfo> inputs(1);
+        std::vector<tensor::TensorInfo> outputs(1);
         
-        // Simple stub - TensorInfo doesn't have set_data/set_dimensions methods in our environment
-        // inputs[0].set_data(d_input);
-        // inputs[0].set_dimensions({config.fft_size});
-        // inputs[0].set_element_type(::framework::tensor::ElementType::COMPLEX_FLOAT32);
+        inputs[0].set_data(d_input);
+        inputs[0].set_dimensions({config.fft_size});
+        inputs[0].set_element_type(tensor::ElementType::COMPLEX_FLOAT32);
         
-        // outputs[0].set_data(d_output);
-        // outputs[0].set_dimensions({config.fft_size});
-        // outputs[0].set_element_type(::framework::tensor::ElementType::COMPLEX_FLOAT32);
+        outputs[0].set_data(d_output);
+        outputs[0].set_dimensions({config.fft_size});
+        outputs[0].set_element_type(tensor::ElementType::COMPLEX_FLOAT32);
         
         // Step 6: Warm-up execution - Forward FFT
         std::cout << "Performing warm-up execution (Forward FFT)...\n";
-        ::framework::task::CancellationToken token;
+        task::CancellationToken token;
         
         std::vector<std::complex<float>> fft_result;
-        auto result = pipeline->execute_pipeline(inputs, outputs, token);
+        auto result = pipeline->execute_forward_fft(input_signal, fft_result, config.fft_size);
         
         if (!result.is_success()) {
             std::cerr << "Forward FFT warm-up failed: " << result.message << "\n";
@@ -300,7 +299,7 @@ int run_fft_example(const ExampleConfig& config) {
         // Step 7: Test inverse FFT for reconstruction
         std::cout << "Testing FFT/IFFT pair...\n";
         std::vector<std::complex<float>> reconstructed_signal;
-        result = pipeline->execute_pipeline(inputs, outputs, token);
+        result = pipeline->execute_inverse_fft(fft_result, reconstructed_signal, config.fft_size);
         
         if (!result.is_success()) {
             std::cerr << "Inverse FFT failed: " << result.message << "\n";
@@ -320,7 +319,8 @@ int run_fft_example(const ExampleConfig& config) {
             
             std::vector<std::complex<float>> ofdm_time_signal;
             perf.start_measurement("OFDM Processing");
-            result = pipeline->execute_pipeline(inputs, outputs, token);
+            result = pipeline->execute_ofdm_processing(input_signal, ofdm_time_signal, 
+                                                     config.fft_size, config.cp_length);
             perf.end_measurement("OFDM Processing");
             
             if (result.is_success()) {
@@ -353,11 +353,11 @@ int run_fft_example(const ExampleConfig& config) {
             
             if (config.use_cuda_graphs && i > 0) {
                 perf.start_measurement("Pipeline Execution (Graph)");
-                result = pipeline->execute_pipeline(inputs, outputs, token);
+                result = pipeline->execute_pipeline_graph(inputs, outputs, token);
                 perf.end_measurement("Pipeline Execution (Graph)");
             } else {
                 perf.start_measurement("Pipeline Execution (Stream)");
-                result = pipeline->execute_pipeline(inputs, outputs, token);
+                result = pipeline->execute_forward_fft(input_signal, fft_result, config.fft_size);
                 perf.end_measurement("Pipeline Execution (Stream)");
             }
             
@@ -391,7 +391,7 @@ int run_fft_example(const ExampleConfig& config) {
         std::cout << "\n=== Pipeline Statistics ===\n";
         std::cout << "Total FFTs processed: " << pipeline_stats.total_ffts_processed << "\n";
         std::cout << "Average FFT time: " << pipeline_stats.average_latency_us() << " μs\n";
-        std::cout << "Peak throughput: " << pipeline_stats.average_throughput_msps() << " Msamples/sec\n";
+        std::cout << "Peak throughput: " << pipeline_stats.average_throughput_msamples_per_sec() << " Msamples/sec\n";
         
         // Step 13: Cleanup
         perf.start_measurement("Cleanup");
@@ -494,7 +494,7 @@ int main(int argc, char* argv[]) {
     std::cout << "\n\nRunning Example 3: High Precision FFT\n";
     ExampleConfig config3;
     config3.fft_size = 512;
-    config3.precision = FFTPrecision::Float64;
+    config3.precision = FFTPrecision::Double;
     config3.num_iterations = 50;
     config3.test_type = "signal";
     

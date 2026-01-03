@@ -1,13 +1,20 @@
 #pragma once
 
+#include <aerial_framework/pipeline/ipipeline.hpp>
+#include <aerial_framework/tensor/tensor_info.hpp>
+#include <aerial_framework/task/task_result.hpp>
+#include <aerial_framework/memory/memory_pool.hpp>
+#include <aerial_framework/cuda_utils/cuda_context.hpp>
+
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
+#include <cudnn.h>
+#include <NvInfer.h>
 #include <memory>
 #include <vector>
 #include <string>
-#include <complex>
 
-namespace neural_beamforming {
+namespace aerial::examples::neural_beamforming {
 
 /**
  * @brief Neural network-based beamforming pipeline for 5G/6G antenna arrays
@@ -19,7 +26,7 @@ namespace neural_beamforming {
  * - GPU-accelerated preprocessing/postprocessing
  * - Performance benchmarking and validation
  */
-class NeuralBeamformingPipeline {
+class NeuralBeamformingPipeline final : public pipeline::IPipeline {
 public:
     /**
      * @brief Beamforming algorithms available
@@ -258,4 +265,4 @@ public:
     );
 };
 
-} // namespace neural_beamforming
+} // namespace aerial::examples::neural_beamforming

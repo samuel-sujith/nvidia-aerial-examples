@@ -1,5 +1,8 @@
 # Modulation Mapping Pipeline Example
-# Inherits standards and CUDA setup from parent CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+
+# Find required packages
+find_package(CUDAToolkit REQUIRED)
 
 # Modulation pipeline library
 add_library(modulation_pipeline
@@ -8,23 +11,24 @@ add_library(modulation_pipeline
 )
 
 target_link_libraries(modulation_pipeline
-    CUDA::cudart
-    CUDA::curand
-    common_utils  # This now includes framework targets
+    PUBLIC
+        CUDA::cudart
+        CUDA::curand
+        aerial_framework
+        common_utils
 )
-
-# Link Quill directly if available (needed for framework headers)
-if(TARGET quill::quill)
-    target_link_libraries(modulation_pipeline quill::quill)
-endif()
 
 target_include_directories(modulation_pipeline
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${AERIAL_FRAMEWORK_INCLUDE_DIRS}
 )
 
-# Inherit properties from parent - no need to set standards again
 set_target_properties(modulation_pipeline PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION ON
 )
 
@@ -45,14 +49,31 @@ add_executable(modulation_mapping_example
 )
 
 target_link_libraries(modulation_example
-    modulation_pipeline
+    PRIVATE
+        modulation_pipeline
+        CUDA::cudart
+        aerial_framework
+        common_utils
 )
 
 target_link_libraries(modulation_mapping_example
-    modulation_pipeline
+    PRIVATE
+        modulation_pipeline
+        CUDA::cudart
+        CUDA::curand
+        aerial_framework
+        common_utils
 )
 
-# Properties inherited from parent
+set_target_properties(modulation_example PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+
+set_target_properties(modulation_mapping_example PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
 
 # Install targets
 install(TARGETS modulation_pipeline modulation_example modulation_mapping_example
@@ -67,9 +88,7 @@ install(FILES
     DESTINATION include/modulation_mapping
 )
 
-# Tests (if enabled and directory exists)
-if(BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+# Tests (if enabled)
+if(BUILD_TESTS)
     add_subdirectory(tests)
-else()
-    message(STATUS "No tests found for modulation_mapping module")
 endif()

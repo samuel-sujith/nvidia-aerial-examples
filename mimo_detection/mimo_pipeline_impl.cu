@@ -1,4 +1,6 @@
 #include "mimo_pipeline.hpp"
+#include <aerial/cuda_utils/CudaGraphHelper.hpp>
+#include <aerial/profiling/NvtxRange.hpp>
 #include <chrono>
 #include <algorithm>
 #include <sstream>

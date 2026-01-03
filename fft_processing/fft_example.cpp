@@ -4,7 +4,6 @@
 #include <complex>
 #include <chrono>
 #include <cmath>
-#include <cuda_runtime.h>
 
 using namespace fft_processing;
 
@@ -47,7 +46,7 @@ void demonstrate_basic_fft() {
     auto pipeline = FFTPipelineFactory::create_pipeline(config);
     
     // Setup pipeline
-    ::framework::pipeline::PipelineSpec spec;
+    aerial::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup FFT pipeline\n";
         return;
@@ -60,9 +59,7 @@ void demonstrate_basic_fft() {
     auto time_signal = generate_test_signal(fft_size, 10.0f); // 10 frequency bins
     std::vector<std::complex<float>> freq_result;
     
-    // Create dummy tensor info for our stub implementation
-    std::vector<::framework::tensor::TensorInfo> inputs, outputs;
-    auto result = pipeline->execute_pipeline(inputs, outputs, {});
+    auto result = pipeline->execute_forward_fft(time_signal, freq_result, fft_size);
     
     if (result.is_success()) {
         std::cout << "Forward FFT successful!\n";
@@ -88,7 +85,7 @@ void demonstrate_basic_fft() {
     std::cout << "\nTesting Inverse FFT:\n";
     std::vector<std::complex<float>> reconstructed_signal;
     
-    result = pipeline->execute_pipeline(inputs, outputs, {});
+    result = pipeline->execute_inverse_fft(freq_result, reconstructed_signal, fft_size);
     
     if (result.is_success()) {
         std::cout << "Inverse FFT successful!\n";
@@ -114,7 +111,7 @@ void demonstrate_basic_fft() {
     auto stats = pipeline->get_fft_stats();
     std::cout << "\nPerformance Statistics:\n";
     std::cout << "Total FFTs processed: " << stats.total_ffts_processed << "\n";
-    std::cout << "Average throughput: " << stats.average_throughput_msps() << " Msamples/sec\n";
+    std::cout << "Average throughput: " << stats.average_throughput_msamples_per_sec() << " Msamples/sec\n";
     std::cout << "Average latency: " << stats.average_latency_us() << " μs\n";
     
     pipeline->teardown();
@@ -126,10 +123,10 @@ void demonstrate_batch_fft() {
     std::cout << "=== Batch FFT Processing Demo ===\n";
     
     // High performance configuration
-    auto config = FFTPipelineFactory::get_default_config({512, 1024, 2048});
+    auto config = FFTPipelineFactory::get_high_performance_config({512, 1024, 2048});
     auto pipeline = FFTPipelineFactory::create_pipeline(config);
     
-    ::framework::pipeline::PipelineSpec spec;
+    aerial::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup pipeline\n";
         return;
@@ -151,9 +148,7 @@ void demonstrate_batch_fft() {
     // Process mixed batch
     auto start_time = std::chrono::high_resolution_clock::now();
     
-    // Create simple tensor info spans for execute_pipeline
-    std::vector<::framework::tensor::TensorInfo> inputs, outputs;
-    auto result = pipeline->execute_pipeline(inputs, outputs, {});
+    auto result = pipeline->execute_mixed_batch(input_batches, output_batches, fft_sizes, FFTType::Forward);
     
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -189,10 +184,10 @@ void demonstrate_ofdm_processing() {
     const size_t cp_length = 72; // Cyclic prefix length
     const size_t active_subcarriers = 600;
     
-    auto config = FFTPipelineFactory::get_default_config({subcarriers});
+    auto config = FFTPipelineFactory::get_ofdm_config(subcarriers);
     auto pipeline = FFTPipelineFactory::create_pipeline(config);
     
-    ::framework::pipeline::PipelineSpec spec;
+    aerial::pipeline::PipelineSpec spec;
     if (!pipeline->setup(spec)) {
         std::cerr << "Failed to setup OFDM pipeline\n";
         return;
@@ -208,8 +203,7 @@ void demonstrate_ofdm_processing() {
     std::cout << "Cyclic prefix length: " << cp_length << "\n";
     
     // Execute OFDM processing (IFFT + CP addition)
-    std::vector<::framework::tensor::TensorInfo> inputs, outputs;
-    auto result = pipeline->execute_pipeline(inputs, outputs, {});
+    auto result = pipeline->execute_ofdm_processing(freq_symbols, time_samples, subcarriers, cp_length);
     
     if (result.is_success()) {
         std::cout << "OFDM processing successful!\n";
@@ -250,10 +244,10 @@ void demonstrate_fft_benchmarks() {
     for (size_t fft_size : fft_sizes) {
         std::cout << "\nBenchmarking FFT size " << fft_size << ":\n";
         
-        auto config = FFTPipelineFactory::get_default_config({fft_size});
+        auto config = FFTPipelineFactory::get_high_performance_config({fft_size});
         auto pipeline = FFTPipelineFactory::create_pipeline(config);
         
-        ::framework::pipeline::PipelineSpec spec;
+        aerial::pipeline::PipelineSpec spec;
         if (!pipeline->setup(spec)) {
             std::cerr << "  Failed to setup pipeline\n";
             continue;
@@ -264,8 +258,7 @@ void demonstrate_fft_benchmarks() {
         std::vector<std::complex<float>> fft_result;
         
         // Warmup
-        std::vector<::framework::tensor::TensorInfo> inputs, outputs;
-        pipeline->execute_pipeline(inputs, outputs, {});
+        pipeline->execute_forward_fft(test_signal, fft_result, fft_size, batch_size);
         
         // Benchmark
         std::vector<double> execution_times;
@@ -274,7 +267,7 @@ void demonstrate_fft_benchmarks() {
             fft_result.clear();
             
             auto start_time = std::chrono::high_resolution_clock::now();
-            auto result = pipeline->execute_pipeline(inputs, outputs, {});
+            auto result = pipeline->execute_forward_fft(test_signal, fft_result, fft_size, batch_size);
             auto end_time = std::chrono::high_resolution_clock::now();
             
             if (result.is_success()) {
@@ -312,86 +305,60 @@ void demonstrate_fft_benchmarks() {
 void demonstrate_precision_modes() {
     std::cout << "=== Precision Modes Demo ===\n";
     
-    // Check CUDA availability first
-    int device_count = 0;
-    cudaError_t cuda_err = cudaGetDeviceCount(&device_count);
-    if (cuda_err != cudaSuccess || device_count == 0) {
-        std::cerr << "Error: No CUDA devices available: " << cudaGetErrorString(cuda_err) << std::endl;
-        return;
-    }
-    
     const size_t fft_size = 1024;
     auto test_signal = generate_test_signal(fft_size, 7.5f);
     
-    std::vector<FFTPrecision> precisions = {FFTPrecision::Float32};  // Only test Float32 for now
-    std::vector<std::string> precision_names = {"Float32"};
+    std::vector<FFTPrecision> precisions = {FFTPrecision::Single, FFTPrecision::Double};
+    std::vector<std::string> precision_names = {"Single", "Double"};
     
     for (size_t i = 0; i < precisions.size(); ++i) {
         std::cout << "\nTesting " << precision_names[i] << " precision:\n";
         
-        try {
-            FFTPipelineConfig config;
-            config.fft_sizes = {fft_size};
-            config.precision = precisions[i];
-            config.max_batch_size = 32;
-            config.gpu_device_id = 0;
-            
-            auto pipeline = FFTPipelineFactory::create_pipeline(config);
-            if (!pipeline) {
-                std::cerr << "  Failed to create pipeline\n";
-                continue;
-            }
-            
-            ::framework::pipeline::PipelineSpec spec("test_fft");
-            if (!pipeline->setup(spec)) {
-                std::cerr << "  Failed to setup pipeline\n";
-                continue;
-            }
-            
-            // Forward FFT
-            std::vector<std::complex<float>> freq_result;
-            auto start_time = std::chrono::high_resolution_clock::now();
-            
-            std::vector<::framework::tensor::TensorInfo> inputs, outputs;
-            auto result = pipeline->execute_pipeline(inputs, outputs, {});
-            auto end_time = std::chrono::high_resolution_clock::now();
-            
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-            
-            if (result.is_success()) {
-                // Simulate results for stub implementation
-                freq_result.resize(test_signal.size());
-                for (size_t j = 0; j < test_signal.size(); ++j) {
-                    freq_result[j] = test_signal[j]; // Dummy: copy input as output
-                }
-                
-                // Inverse FFT for error measurement (simulated)
-                std::vector<std::complex<float>> reconstructed = test_signal; // Dummy: perfect reconstruction
-                
-                // Calculate reconstruction error
-                double mse = 0.0;
-                for (size_t j = 0; j < test_signal.size() && j < reconstructed.size(); ++j) {
-                    auto diff = test_signal[j] - reconstructed[j];
-                    mse += std::norm(diff);
-                }
-                mse /= test_signal.size();
-                
-                double throughput = static_cast<double>(fft_size) / (duration.count() > 0 ? duration.count() : 1);
-                
-                std::cout << "  Processing time: " << duration.count() << " μs\n";
-                std::cout << "  Throughput: " << throughput << " Msamples/sec\n";
-                std::cout << "  Reconstruction MSE: " << mse << "\n";
-                std::cout << "  Numerical accuracy: " << (-10.0 * std::log10(mse + 1e-12)) << " dB\n";
-            } else {
-                std::cerr << "  FFT failed: " << result.message << "\n";
-            }
-            
-            pipeline->teardown();
-        } catch (const std::exception& e) {
-            std::cerr << "  Exception occurred: " << e.what() << "\n";
-        } catch (...) {
-            std::cerr << "  Unknown exception occurred\n";
+        FFTPipelineConfig config;
+        config.fft_sizes = {fft_size};
+        config.precision = precisions[i];
+        config.max_batch_size = 32;
+        
+        auto pipeline = FFTPipelineFactory::create_pipeline(config);
+        
+        aerial::pipeline::PipelineSpec spec;
+        if (!pipeline->setup(spec)) {
+            std::cerr << "  Failed to setup pipeline\n";
+            continue;
         }
+        
+        // Forward FFT
+        std::vector<std::complex<float>> freq_result;
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto result = pipeline->execute_forward_fft(test_signal, freq_result, fft_size);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        if (result.is_success()) {
+            // Inverse FFT for error measurement
+            std::vector<std::complex<float>> reconstructed;
+            pipeline->execute_inverse_fft(freq_result, reconstructed, fft_size);
+            
+            // Calculate reconstruction error
+            double mse = 0.0;
+            for (size_t j = 0; j < test_signal.size(); ++j) {
+                auto diff = test_signal[j] - reconstructed[j];
+                mse += std::norm(diff);
+            }
+            mse /= test_signal.size();
+            
+            double throughput = static_cast<double>(fft_size) / duration.count();
+            
+            std::cout << "  Processing time: " << duration.count() << " μs\n";
+            std::cout << "  Throughput: " << throughput << " Msamples/sec\n";
+            std::cout << "  Reconstruction MSE: " << mse << "\n";
+            std::cout << "  Numerical accuracy: " << (-10.0 * std::log10(mse)) << " dB\n";
+        } else {
+            std::cerr << "  FFT failed: " << result.message << "\n";
+        }
+        
+        pipeline->teardown();
     }
     
     std::cout << "\n";
@@ -402,42 +369,16 @@ int main() {
         std::cout << "NVIDIA Aerial Framework - FFT Pipeline Examples\n";
         std::cout << "==============================================\n\n";
         
-        // Check CUDA availability at startup
-        int device_count = 0;
-        cudaError_t cuda_err = cudaGetDeviceCount(&device_count);
-        if (cuda_err != cudaSuccess) {
-            std::cerr << "CUDA Error: " << cudaGetErrorString(cuda_err) << std::endl;
-            std::cerr << "This example requires CUDA support. Please ensure:\n";
-            std::cerr << "1. NVIDIA GPU is installed and recognized\n";
-            std::cerr << "2. CUDA drivers are properly installed\n";
-            std::cerr << "3. CUDA runtime is available\n";
-            return 1;
-        }
-        
-        if (device_count == 0) {
-            std::cerr << "No CUDA devices found. Please check your GPU installation." << std::endl;
-            return 1;
-        }
-        
-        std::cout << "Found " << device_count << " CUDA device(s)\n";
-        
-        // Print device info for first device
-        cudaDeviceProp props;
-        cudaGetDeviceProperties(&props, 0);
-        std::cout << "Using device 0: " << props.name << "\n";
-        std::cout << "Compute capability: " << props.major << "." << props.minor << "\n\n";
-        
-        // Run demos in order of complexity
-        std::cout << "Running precision modes demo (simplified)...\n";
+        demonstrate_basic_fft();
+        demonstrate_batch_fft();
+        demonstrate_ofdm_processing();
+        demonstrate_fft_benchmarks();
         demonstrate_precision_modes();
         
-        std::cout << "All FFT demos completed!\n";
+        std::cout << "All FFT demos completed successfully!\n";
         
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "Unknown error occurred" << std::endl;
         return 1;
     }
     

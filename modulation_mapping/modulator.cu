@@ -80,10 +80,10 @@ __global__ void qam_modulation_kernel(ModulationDescriptor* desc) {
     // Extract bits for this symbol based on modulation scheme
     int bits_per_symbol;
     switch (desc->params->scheme) {
-        case ::ModulationScheme::QPSK:    bits_per_symbol = 2; break;
-        case ::ModulationScheme::QAM_16:  bits_per_symbol = 4; break;
-        case ::ModulationScheme::QAM_64:  bits_per_symbol = 6; break;
-        case ::ModulationScheme::QAM_256: bits_per_symbol = 8; break;
+        case ModulationScheme::QPSK:    bits_per_symbol = 2; break;
+        case ModulationScheme::QAM_16:  bits_per_symbol = 4; break;
+        case ModulationScheme::QAM_64:  bits_per_symbol = 6; break;
+        case ModulationScheme::QAM_256: bits_per_symbol = 8; break;
         default: return;
     }
     
@@ -103,16 +103,16 @@ __global__ void qam_modulation_kernel(ModulationDescriptor* desc) {
     // Modulate based on scheme
     cuComplex symbol;
     switch (desc->params->scheme) {
-        case ::ModulationScheme::QPSK:
+        case ModulationScheme::QPSK:
             symbol = modulate_qpsk(symbol_bits);
             break;
-        case ::ModulationScheme::QAM_16:
+        case ModulationScheme::QAM_16:
             symbol = modulate_qam16(symbol_bits);
             break;
-        case ::ModulationScheme::QAM_64:
+        case ModulationScheme::QAM_64:
             symbol = modulate_qam64(symbol_bits);
             break;
-        case ::ModulationScheme::QAM_256:
+        case ModulationScheme::QAM_256:
             symbol = modulate_qam256(symbol_bits);
             break;
     }
@@ -128,13 +128,17 @@ namespace aerial::examples {
 
 QAMModulator::QAMModulator(
     const std::string& module_id,
-    const ::ModulationParams& params
+    const ModulationParams& params
 ) : module_id_(module_id), params_(params), d_descriptor_(nullptr) {
     allocate_gpu_memory();
 }
 
+QAMModulator::~QAMModulator() {
+    deallocate_gpu_memory();
+}
+
 void QAMModulator::allocate_gpu_memory() {
-    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(::ModulationDescriptor));
+    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(ModulationDescriptor));
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate GPU memory for modulation descriptor");
     }
@@ -165,19 +169,23 @@ cudaError_t QAMModulator::launch_modulation_kernel(cudaStream_t stream) {
     return cudaGetLastError();
 }
 
-::framework::task::TaskResult QAMModulator::execute(
-    const std::vector<::framework::tensor::TensorInfo>& inputs,
-    std::vector<::framework::tensor::TensorInfo>& outputs,
-    const ::framework::task::CancellationToken& token
+task::TaskResult QAMModulator::execute(
+    const std::vector<tensor::TensorInfo>& inputs,
+    std::vector<tensor::TensorInfo>& outputs,
+    const task::CancellationToken& token
 ) {
+    if (token.is_cancellation_requested()) {
+        return task::TaskResult(task::TaskStatus::Cancelled, "Task cancelled");
+    }
+    
     try {
         if (inputs.empty() || outputs.empty()) {
-            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Invalid inputs/outputs");
+            return task::TaskResult(task::TaskStatus::Failed, "Invalid inputs/outputs");
         }
         
-        // Setup descriptor (using stub pointers since TensorInfo.data() not available)
-        h_descriptor_.input_bits = nullptr; // Stub - would get from tensor data
-        h_descriptor_.output_symbols = nullptr; // Stub - would get from tensor data
+        // Setup descriptor
+        h_descriptor_.input_bits = reinterpret_cast<const uint32_t*>(inputs[0].data());
+        h_descriptor_.output_symbols = reinterpret_cast<cuComplex*>(outputs[0].data());
         h_descriptor_.params = &params_;
         h_descriptor_.total_symbols = params_.num_symbols;
         
@@ -186,23 +194,23 @@ cudaError_t QAMModulator::launch_modulation_kernel(cudaStream_t stream) {
         // Setup and launch kernel
         cudaError_t err = setup_modulation_kernel(stream);
         if (err != cudaSuccess) {
-            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Setup failed");
+            return task::TaskResult(task::TaskStatus::Failed, "Setup failed");
         }
         
         err = launch_modulation_kernel(stream);
         if (err != cudaSuccess) {
-            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Kernel launch failed");
+            return task::TaskResult(task::TaskStatus::Failed, "Kernel launch failed");
         }
         
         err = cudaStreamSynchronize(stream);
         if (err != cudaSuccess) {
-            return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, "Synchronization failed");
+            return task::TaskResult(task::TaskStatus::Failed, "Synchronization failed");
         }
         
-        return ::framework::task::TaskResult(::framework::task::TaskStatus::Completed, "Modulation completed");
+        return task::TaskResult(task::TaskStatus::Completed, "Modulation completed");
         
     } catch (const std::exception& e) {
-        return ::framework::task::TaskResult(::framework::task::TaskStatus::Failed, e.what());
+        return task::TaskResult(task::TaskStatus::Failed, e.what());
     }
 }
 

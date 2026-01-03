@@ -1,98 +1,53 @@
-# Neural Beamforming Demonstration
+# Neural Beamforming with ML Integration
 
-This module demonstrates simplified neural beamforming concepts using CUDA with framework compatibility patterns. It showcases basic beamforming algorithms without requiring complex ML dependencies or full framework installation.
+This module demonstrates how to integrate machine learning models with the NVIDIA Aerial framework for intelligent beamforming optimization. It showcases the complete ML pipeline from training data generation to production deployment with TensorRT.
 
 ## Overview
 
-This simplified implementation demonstrates beamforming concepts and shows how to:
+Neural beamforming combines traditional signal processing with deep learning to optimize antenna array performance. This implementation shows how to:
 
-- Implement basic beamforming algorithms
-- Structure code for neural network integration
-- Use CUDA for signal processing
-- Follow framework-compatible patterns
-- Compare different beamforming approaches
+- Train neural networks for beamforming weight optimization
+- Deploy models using TensorRT for real-time inference
+- Integrate ML pipelines with Aerial framework patterns
+- Compare neural vs. traditional algorithms
+- Implement online learning and adaptation
 
 ## Architecture
 
-### Simplified Pipeline
+### ML Pipeline Components
 
 ```
-Channel Input → Beamforming → Output
-     ↓         Algorithm        ↓
-  Antenna     Traditional/     Beamformed
-   Array      Simplified       Signal
+Training Data → Neural Network → TensorRT Engine → Real-time Inference
+    ↓              ↓                ↓                    ↓
+Channel CSI    PyTorch/TF        Optimized           Beamforming
+Generation     Training          Inference            Weights
 ```
 
 ### Supported Algorithms
 
-1. **Traditional Methods**
-   - MMSE (Minimum Mean Square Error) concepts
-   - Zero-Forcing principles
-   - Basic antenna array processing
+1. **Traditional Baselines**
+   - MMSE (Minimum Mean Square Error)
+   - Zero-Forcing
+   - Conjugate Beamforming
 
-2. **Simplified Neural Approach**
-   - Demonstrates neural network integration patterns
-   - Basic weight calculation
-   - Framework-compatible structure
+2. **Neural Networks**
+   - Deep Neural Networks (DNN)
+   - Convolutional Neural Networks (CNN)
+   - Hybrid traditional + neural approaches
 
-3. **Implementation Features**
-   - CUDA-based signal processing
-   - Framework compatibility stubs
-   - Performance measurement
-   - Modular design for future expansion
+3. **ML Integration Features**
+   - TensorRT optimization (FP32/FP16/INT8)
+   - Online learning and adaptation
+   - Multi-scenario training
+   - Performance benchmarking
 
 ## Files Structure
 
-- **`neural_beamforming_pipeline_simple.hpp`** - Simplified pipeline interface
-- **`neural_beamforming_pipeline_simple.cpp`** - Basic implementation with CUDA
-- **`neural_beamforming_example_simple.cpp`** - Simple beamforming demonstration
-- **`neural_beamforming_ml_example_simple.cpp`** - Basic ML concepts demonstration
-- **`framework_stubs.cpp`** - Framework compatibility layer
-- **`CMakeLists.txt`** - Build configuration
-
-## Building and Running
-
-### Prerequisites
-- CUDA Toolkit 11.8+
-- CMake 3.20+
-- C++20 compatible compiler
-- GPU with compute capability 7.0+
-- cuBLAS library
-
-### Build
-```bash
-# From repository root
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-
-# Run the examples
-./neural_beamforming/neural_beamforming_example_simple
-./neural_beamforming/neural_beamforming_ml_example_simple
-```
-
-### Example Output
-```
-Neural Beamforming Pipeline Example
-==================================
-Initializing beamforming pipeline...
-Configuration: 64 antennas, 8 users
-Pipeline initialized successfully
-
-Processing beamforming...
-Channel input: 512 samples
-Beamformed output: 8 user signals
-
-Processing completed in 1.2ms
-  - Processed samples: 512
-  - Signal-to-interference ratio: 15.0 dB
-  - Spectral efficiency: 4.5 bits/s/Hz
-  - Total latency: 1.2ms
-
-Algorithm comparison:
-  Traditional MMSE: 1.2ms
-  Simplified Neural: 2.5ms (with overhead)
-```
+- **`neural_beamforming_pipeline.hpp`** - Main pipeline interface with ML integration
+- **`neural_beamforming_pipeline.cpp`** - Implementation with CUDA kernels and TensorRT
+- **`neural_beamforming_example.cpp`** - Simple example showing basic ML integration
+- **`neural_beamforming_ml_example.cpp`** - Comprehensive ML pipeline demonstration
+- **`CMakeLists.txt`** - Build configuration with ML dependencies
 - **`README.md`** - This documentation
 
 ## Key Features
