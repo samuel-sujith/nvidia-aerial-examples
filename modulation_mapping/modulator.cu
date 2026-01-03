@@ -8,7 +8,8 @@
 #include <cuComplex.h>
 #include <stdexcept>
 
-namespace framework {\nnamespace examples {
+namespace framework {
+namespace examples {
 
 // QAM constellation look-up tables
 __device__ __constant__ float qpsk_table[4] = {
@@ -214,4 +215,5 @@ task::TaskResult QAMModulator::execute(
     }
 }
 
-} // namespace examples\n} // namespace framework
+} // namespace examples
+} // namespace framework
