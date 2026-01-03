@@ -49,8 +49,18 @@ set(AERIAL_FRAMEWORK_INCLUDE_DIRS
 if(TARGET quill::quill)
     get_target_property(QUILL_INCLUDE_DIRS quill::quill INTERFACE_INCLUDE_DIRECTORIES)
     if(QUILL_INCLUDE_DIRS)
-        list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${QUILL_INCLUDE_DIRS})
-        message(STATUS "Added Quill include directories: ${QUILL_INCLUDE_DIRS}")
+        # Filter out generator expressions and extract real paths
+        foreach(INCLUDE_DIR ${QUILL_INCLUDE_DIRS})
+            string(REGEX MATCH "\\$<BUILD_INTERFACE:([^>]+)>" MATCH_RESULT "${INCLUDE_DIR}")
+            if(CMAKE_MATCH_1)
+                list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${CMAKE_MATCH_1})
+                message(STATUS "Added Quill BUILD_INTERFACE include: ${CMAKE_MATCH_1}")
+            elseif(NOT INCLUDE_DIR MATCHES "\\$<.*>")
+                # Add non-generator-expression paths directly
+                list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${INCLUDE_DIR})
+                message(STATUS "Added Quill include: ${INCLUDE_DIR}")
+            endif()
+        endforeach()
     endif()
 endif()
 

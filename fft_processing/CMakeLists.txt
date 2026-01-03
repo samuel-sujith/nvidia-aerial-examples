@@ -14,6 +14,11 @@ target_link_libraries(fft_pipeline
         common_utils  # This now includes framework targets
 )
 
+# Link Quill directly if available (needed for framework headers)
+if(TARGET quill::quill)
+    target_link_libraries(fft_pipeline PUBLIC quill::quill)
+endif()
+
 target_include_directories(fft_pipeline
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}

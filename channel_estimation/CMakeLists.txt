@@ -16,6 +16,11 @@ target_link_libraries(channel_estimator
     CUDA::cufft   # If using FFT for frequency domain operations
 )
 
+# Link Quill directly if available (needed for framework headers)
+if(TARGET quill::quill)
+    target_link_libraries(channel_estimator PUBLIC quill::quill)
+endif()
+
 target_include_directories(channel_estimator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
@@ -34,6 +39,11 @@ target_link_libraries(channel_est_pipeline
     common_utils
     # Framework libraries will be linked via common_utils
 )
+
+# Link Quill directly if available (needed for framework headers)
+if(TARGET quill::quill)
+    target_link_libraries(channel_est_pipeline PUBLIC quill::quill)
+endif()
 
 target_include_directories(channel_est_pipeline PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

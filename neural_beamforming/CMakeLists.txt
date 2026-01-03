@@ -16,6 +16,11 @@ target_link_libraries(neural_beamforming_pipeline
         CUDA::cublas
 )
 
+# Link Quill directly if available (needed for framework headers)
+if(TARGET quill::quill)
+    target_link_libraries(neural_beamforming_pipeline PUBLIC quill::quill)
+endif()
+
 # Properties inherited from parent - no need to set standards again
 
 # Set CUDA properties for neural network operations

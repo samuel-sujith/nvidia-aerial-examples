@@ -14,6 +14,11 @@ target_link_libraries(modulation_pipeline
         common_utils  # This now includes framework targets
 )
 
+# Link Quill directly if available (needed for framework headers)
+if(TARGET quill::quill)
+    target_link_libraries(modulation_pipeline PUBLIC quill::quill)
+endif()
+
 target_include_directories(modulation_pipeline
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
