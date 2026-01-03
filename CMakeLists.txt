@@ -86,82 +86,28 @@ if(NOT TARGET quill::quill)
         add_subdirectory(external/quill)
     else()
         message(STATUS "Local Quill not found at ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
-        message(STATUS "Creating Quill compatibility stubs")
+        message(STATUS "Downloading Quill to external/quill")
         
-        # Create compatibility header directory
-        file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill")
+        # Create external directory
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/external")
         
-        # Create Backend.h compatibility stub
-        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/Backend.h"
-            "#pragma once\n"
-            "namespace quill {\n"
-            "  class Backend {\n"
-            "  public:\n"
-            "    static void start() {}\n"
-            "    static void stop() {}\n"
-            "    static Backend& instance() { static Backend b; return b; }\n"
-            "  };\n"
-            "}\n"
+        # Download Quill to externals
+        execute_process(
+            COMMAND git clone --branch v2.9.2 --depth 1 https://github.com/odygrd/quill.git external/quill
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE GIT_RESULT
         )
         
-        # Create LogMacros.h compatibility stub
-        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/LogMacros.h"
-            "#pragma once\n"
-            "#define LOG_TRACE_L3(...)\n"
-            "#define LOG_TRACE_L2(...)\n"
-            "#define LOG_TRACE_L1(...)\n"
-            "#define LOG_DEBUG(...)\n"
-            "#define LOG_INFO(...)\n"
-            "#define LOG_WARNING(...)\n"
-            "#define LOG_ERROR(...)\n"
-            "#define LOG_CRITICAL(...)\n"
-        )
-        
-        # Create DeferredFormatCodec.h compatibility stub
-        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/DeferredFormatCodec.h"
-            "#pragma once\n"
-            "namespace quill {\n"
-            "  template<typename T>\n"
-            "  struct DeferredFormatCodec {\n"
-            "    static constexpr size_t size() noexcept { return sizeof(T); }\n"
-            "    static void encode(char*, T const&) noexcept {}\n"
-            "    static T decode(char const*) noexcept { return T{}; }\n"
-            "  };\n"
-            "}\n"
-        )
-        
-        # Create DirectFormatCodec.h compatibility stub
-        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/DirectFormatCodec.h"
-            "#pragma once\n"
-            "namespace quill {\n"
-            "  template<typename T>\n"
-            "  struct DirectFormatCodec {\n"
-            "    static constexpr size_t size() noexcept { return sizeof(T); }\n"
-            "    static void encode(char*, T const&) noexcept {}\n"
-            "    static T decode(char const*) noexcept { return T{}; }\n"
-            "  };\n"
-            "}\n"
-        )
-        
-        # Create Frontend.h compatibility stub
-        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/Frontend.h"
-            "#pragma once\n"
-            "namespace quill {\n"
-            "  class Frontend {\n"
-            "  public:\n"
-            "    static void start() {}\n"
-            "    static void stop() {}\n"
-            "    static Frontend& instance() { static Frontend f; return f; }\n"
-            "  };\n"
-            "}\n"
-        )
-        
-        # Create minimal quill interface library
-        add_library(quill_compat INTERFACE)
-        target_include_directories(quill_compat INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include")
-        add_library(quill::quill ALIAS quill_compat)
-        
-        message(STATUS "Created Quill compatibility stubs")
+        if(GIT_RESULT EQUAL 0)
+            message(STATUS "Successfully downloaded Quill to external/quill")
+            # Configure Quill with our options
+            option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
+            option(QUILL_BUILD_TESTS "Build tests" OFF) 
+            option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
+            add_subdirectory(external/quill)
+        else()
+            message(FATAL_ERROR "Failed to download Quill")
+        endif()
     endif()
 endif()
 
