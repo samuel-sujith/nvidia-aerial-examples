@@ -90,7 +90,7 @@ if(NOT TARGET quill::quill)
         CPMAddPackage(
             NAME quill
             GITHUB_REPOSITORY odygrd/quill
-            GIT_TAG v2.9.2
+            GIT_TAG v1.7.3
             OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
             SYSTEM YES
         )
@@ -104,7 +104,12 @@ if(NOT TARGET quill::quill)
             file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/DeferredFormatCodec.h"
                 "#pragma once\n"
                 "// Compatibility header for Aerial Framework\n"
-                "#include \"quill/detail/FormatArgTypes.h\"\n"
+                "namespace quill { template<typename T> struct DeferredFormatCodec {}; }\n"
+            )
+            file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/Backend.h"
+                "#pragma once\n"
+                "// Compatibility header for Aerial Framework\n"
+                "namespace quill { class Backend { public: static void start() {} static void stop() {} }; }\n"
             )
             message(STATUS "Created Quill compatibility headers")
         endif()
