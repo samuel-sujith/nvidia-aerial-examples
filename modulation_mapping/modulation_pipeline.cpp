@@ -1,11 +1,12 @@
 #include "modulation_pipeline.hpp"
-#include <aerial/cuda_utils/CudaGraphHelper.hpp>
-#include <aerial/profiling/NvtxRange.hpp>
+// #include <aerial/cuda_utils/CudaGraphHelper.hpp> // Not available
+// #include <aerial/profiling/NvtxRange.hpp> // Not available
 #include <chrono>
 #include <algorithm>
 #include <sstream>
 
-namespace modulation {
+namespace framework {
+namespace examples {
 
 ModulationPipeline::ModulationPipeline(const ModulationPipelineConfig& config)
     : config_(config), pipeline_id_("modulation_pipeline_v1") {
@@ -25,8 +26,8 @@ std::string_view ModulationPipeline::get_pipeline_id() const {
     return pipeline_id_;
 }
 
-bool ModulationPipeline::setup(const aerial::pipeline::PipelineSpec& spec) {
-    aerial::profiling::NvtxRange range("ModulationPipeline::setup");
+bool ModulationPipeline::setup(const framework::pipeline::PipelineSpec& spec) {
+    // // framework::profiling::NvtxRange range("ModulationPipeline::setup");
     
     try {
         // Set GPU device
@@ -49,7 +50,7 @@ bool ModulationPipeline::setup(const aerial::pipeline::PipelineSpec& spec) {
         }
         
         // Create memory pool
-        memory_pool_ = std::make_unique<aerial::memory::MemoryPool>(
+        memory_pool_ = std::make_unique<framework::tensor::TensorArena>(
             config_.memory_pool_size);
         
         is_initialized_ = true;
@@ -62,7 +63,7 @@ bool ModulationPipeline::setup(const aerial::pipeline::PipelineSpec& spec) {
 }
 
 void ModulationPipeline::teardown() {
-    aerial::profiling::NvtxRange range("ModulationPipeline::teardown");
+    // framework::profiling::NvtxRange range("ModulationPipeline::teardown");
     
     cleanup_cuda_resources();
     modulator_.reset();
@@ -164,15 +165,15 @@ bool ModulationPipeline::ensure_buffer_capacity(size_t required_bits, size_t req
     return true;
 }
 
-aerial::task::TaskResult ModulationPipeline::execute_pipeline(
-    std::span<const aerial::tensor::TensorInfo> inputs,
-    std::span<aerial::tensor::TensorInfo> outputs,
-    const aerial::task::CancellationToken& token) {
+framework::task::TaskResult ModulationPipeline::execute_pipeline(
+    std::span<const framework::tensor::TensorInfo> inputs,
+    std::span<framework::tensor::TensorInfo> outputs,
+    const framework::task::CancellationToken& token) {
     
-    aerial::profiling::NvtxRange range("ModulationPipeline::execute_pipeline");
+    // framework::profiling::NvtxRange range("ModulationPipeline::execute_pipeline");
     
     if (!is_initialized_) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed, 
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed, 
                                       "Pipeline not initialized");
     }
     
@@ -200,7 +201,7 @@ aerial::task::TaskResult ModulationPipeline::execute_pipeline(
         
         // Ensure buffer capacity
         if (!ensure_buffer_capacity(num_bits, num_symbols)) {
-            return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+            return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                           "Failed to allocate GPU memory");
         }
         
@@ -214,7 +215,7 @@ aerial::task::TaskResult ModulationPipeline::execute_pipeline(
         
         // Execute modulation
         if (token.is_cancellation_requested()) {
-            return aerial::task::TaskResult(aerial::task::TaskStatus::Cancelled);
+            return framework::task::TaskResult(framework::task::TaskStatus::Cancelled);
         }
         
         auto modulation_result = modulator_->modulate(
@@ -243,23 +244,23 @@ aerial::task::TaskResult ModulationPipeline::execute_pipeline(
         
         update_performance_stats(duration.count(), num_symbols);
         
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+        return framework::task::TaskResult(framework::task::TaskStatus::Completed);
         
     } catch (const std::exception& e) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed, e.what());
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed, e.what());
     }
 }
 
-aerial::task::TaskResult ModulationPipeline::execute_pipeline_graph(
-    std::span<const aerial::tensor::TensorInfo> inputs,
-    std::span<aerial::tensor::TensorInfo> outputs,
-    const aerial::task::CancellationToken& token) {
+framework::task::TaskResult ModulationPipeline::execute_pipeline_graph(
+    std::span<const framework::tensor::TensorInfo> inputs,
+    std::span<framework::tensor::TensorInfo> outputs,
+    const framework::task::CancellationToken& token) {
     
     if (!config_.enable_cuda_graphs) {
         return execute_pipeline(inputs, outputs, token);
     }
     
-    aerial::profiling::NvtxRange range("ModulationPipeline::execute_pipeline_graph");
+    // framework::profiling::NvtxRange range("ModulationPipeline::execute_pipeline_graph");
     
     const auto& input_tensor = inputs[0];
     size_t num_bits = input_tensor.num_elements();
@@ -297,10 +298,10 @@ aerial::task::TaskResult ModulationPipeline::execute_pipeline_graph(
         
         update_performance_stats(duration.count(), num_symbols);
         
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+        return framework::task::TaskResult(framework::task::TaskStatus::Completed);
         
     } catch (const std::exception& e) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed, e.what());
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed, e.what());
     }
 }
 
@@ -346,13 +347,13 @@ bool ModulationPipeline::create_cuda_graph(size_t num_bits) {
     }
 }
 
-aerial::task::TaskResult ModulationPipeline::modulate_bits(
+framework::task::TaskResult ModulationPipeline::modulate_bits(
     const std::vector<uint8_t>& input_bits,
     std::vector<std::complex<float>>& output_symbols,
-    const aerial::task::CancellationToken& token) {
+    const framework::task::CancellationToken& token) {
     
     if (!is_initialized_) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Pipeline not initialized");
     }
     
@@ -360,59 +361,59 @@ aerial::task::TaskResult ModulationPipeline::modulate_bits(
     output_symbols.resize(num_symbols);
     
     // Create tensor info for pipeline execution
-    aerial::tensor::TensorInfo input_tensor;
+    framework::tensor::TensorInfo input_tensor;
     input_tensor.set_data(const_cast<uint8_t*>(input_bits.data()));
     input_tensor.set_dimensions({input_bits.size()});
-    input_tensor.set_element_type(aerial::tensor::ElementType::UINT8);
+    input_tensor.set_element_type(framework::tensor::ElementType::UINT8);
     
-    aerial::tensor::TensorInfo output_tensor;
+    framework::tensor::TensorInfo output_tensor;
     output_tensor.set_data(output_symbols.data());
     output_tensor.set_dimensions({num_symbols});
-    output_tensor.set_element_type(aerial::tensor::ElementType::COMPLEX_FLOAT32);
+    output_tensor.set_element_type(framework::tensor::ElementType::COMPLEX_FLOAT32);
     
-    std::array<aerial::tensor::TensorInfo, 1> inputs = {input_tensor};
-    std::array<aerial::tensor::TensorInfo, 1> outputs = {output_tensor};
+    std::array<framework::tensor::TensorInfo, 1> inputs = {input_tensor};
+    std::array<framework::tensor::TensorInfo, 1> outputs = {output_tensor};
     
     return execute_pipeline(inputs, outputs, token);
 }
 
-aerial::task::TaskResult ModulationPipeline::validate_inputs(
-    std::span<const aerial::tensor::TensorInfo> inputs) const {
+framework::task::TaskResult ModulationPipeline::validate_inputs(
+    std::span<const framework::tensor::TensorInfo> inputs) const {
     
     if (inputs.size() != 1) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Expected exactly 1 input tensor");
     }
     
     const auto& input = inputs[0];
-    if (input.element_type() != aerial::tensor::ElementType::UINT8) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+    if (input.element_type() != framework::tensor::ElementType::UINT8) {
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Input tensor must be UINT8 type");
     }
     
     if (input.dimensions().size() != 1) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Input tensor must be 1-dimensional");
     }
     
-    return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+    return framework::task::TaskResult(framework::task::TaskStatus::Completed);
 }
 
-aerial::task::TaskResult ModulationPipeline::validate_outputs(
-    std::span<aerial::tensor::TensorInfo> outputs) const {
+framework::task::TaskResult ModulationPipeline::validate_outputs(
+    std::span<framework::tensor::TensorInfo> outputs) const {
     
     if (outputs.size() != 1) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Expected exactly 1 output tensor");
     }
     
     const auto& output = outputs[0];
-    if (output.element_type() != aerial::tensor::ElementType::COMPLEX_FLOAT32) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+    if (output.element_type() != framework::tensor::ElementType::COMPLEX_FLOAT32) {
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Output tensor must be COMPLEX_FLOAT32 type");
     }
     
-    return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+    return framework::task::TaskResult(framework::task::TaskStatus::Completed);
 }
 
 void ModulationPipeline::update_performance_stats(uint64_t execution_time_us, size_t symbols_processed) {
@@ -424,8 +425,8 @@ void ModulationPipeline::update_performance_stats(uint64_t execution_time_us, si
     stats_.max_execution_time_us = std::max(stats_.max_execution_time_us, execution_time_us);
 }
 
-aerial::pipeline::PipelineStats ModulationPipeline::get_stats() const {
-    aerial::pipeline::PipelineStats base_stats;
+framework::pipeline::PipelineStats ModulationPipeline::get_stats() const {
+    framework::pipeline::PipelineStats base_stats;
     base_stats.pipeline_id = pipeline_id_;
     base_stats.total_executions = stats_.total_batches_processed;
     base_stats.successful_executions = stats_.total_batches_processed; // Assuming all successful for now
@@ -479,3 +480,5 @@ ModulationPipelineConfig ModulationPipelineFactory::get_low_latency_config(Modul
 }
 
 } // namespace modulation
+} // namespace examples
+} // namespace framework

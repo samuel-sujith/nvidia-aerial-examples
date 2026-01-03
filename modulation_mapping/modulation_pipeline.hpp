@@ -154,7 +154,11 @@ public:
     
     static ModulationPipelineConfig get_default_config(ModulationScheme order);
     static ModulationPipelineConfig get_high_performance_config(ModulationScheme order);
-    static ModulationPipelineConfig get_low_latency_config(ModulationScheme order);\n};\n\n} // namespace examples\n} // namespace framework
+    static ModulationPipelineConfig get_low_latency_config(ModulationScheme order);
+};
+
+} // namespace examples
+} // namespace framework
 };
 
 } // namespace modulation
