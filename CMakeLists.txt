@@ -130,6 +130,19 @@ if(NOT TARGET quill::quill)
             "}\n"
         )
         
+        # Create DirectFormatCodec.h compatibility stub
+        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/DirectFormatCodec.h"
+            "#pragma once\n"
+            "namespace quill {\n"
+            "  template<typename T>\n"
+            "  struct DirectFormatCodec {\n"
+            "    static constexpr size_t size() noexcept { return sizeof(T); }\n"
+            "    static void encode(char*, T const&) noexcept {}\n"
+            "    static T decode(char const*) noexcept { return T{}; }\n"
+            "  };\n"
+            "}\n"
+        )
+        
         # Create minimal quill interface library
         add_library(quill_compat INTERFACE)
         target_include_directories(quill_compat INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include")
