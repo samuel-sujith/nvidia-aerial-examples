@@ -91,20 +91,36 @@ if(NOT TARGET quill::quill)
         # Create external directory
         file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/external")
         
-        # Download Quill to externals
+        # Download Quill to a temporary location first
         execute_process(
-            COMMAND git clone --branch v2.9.2 --depth 1 https://github.com/odygrd/quill.git external/quill
+            COMMAND git clone --branch v2.9.2 --depth 1 https://github.com/odygrd/quill.git external/quill_temp
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             RESULT_VARIABLE GIT_RESULT
         )
         
         if(GIT_RESULT EQUAL 0)
-            message(STATUS "Successfully downloaded Quill to external/quill")
-            # Configure Quill with our options
-            option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
-            option(QUILL_BUILD_TESTS "Build tests" OFF) 
-            option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
-            add_subdirectory(external/quill)
+            # Move the actual quill library content to external/quill
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E rename external/quill_temp/quill external/quill
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                RESULT_VARIABLE MOVE_RESULT
+            )
+            # Remove temporary directory
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E remove_directory external/quill_temp
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            )
+            
+            if(MOVE_RESULT EQUAL 0)
+                message(STATUS "Successfully set up Quill at external/quill")
+                # Configure Quill with our options
+                option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
+                option(QUILL_BUILD_TESTS "Build tests" OFF) 
+                option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
+                add_subdirectory(external/quill)
+            else()
+                message(FATAL_ERROR "Failed to move Quill to external/quill")
+            endif()
         else()
             message(FATAL_ERROR "Failed to download Quill")
         endif()
