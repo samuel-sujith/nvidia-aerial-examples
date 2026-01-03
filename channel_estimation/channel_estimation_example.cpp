@@ -320,8 +320,6 @@ int run_channel_estimation_example(const ExampleConfig& config) {
         // Step 11: Print pipeline statistics
         std::cout << "\n=== Pipeline Statistics ===\n";
         pipeline->print_stats();
-        std::cout << "Success rate: " << 
-            (100.0 * pipeline_stats.successful_executions / pipeline_stats.total_executions) << "%\n";
         std::cout << "Average execution time: Not available in stub implementation\n";
         
         // Step 12: Cleanup
