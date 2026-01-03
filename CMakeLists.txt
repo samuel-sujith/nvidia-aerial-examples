@@ -73,7 +73,6 @@ if(NOT TARGET quill::quill)
     else()
         message(FATAL_ERROR "Local Quill library not found at ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
     endif()
-    endif()
 endif()
 
 # Try to find installed Aerial Framework first
