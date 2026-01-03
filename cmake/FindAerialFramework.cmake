@@ -122,10 +122,10 @@ function(create_framework_target TARGET_NAME LIBRARY_VAR)
         )
         target_include_directories(${FULL_TARGET_NAME} INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
         
-        # Link Quill if this target needs it (log, task targets need Quill)
-        if(TARGET quill::quill AND ("${TARGET_NAME}" STREQUAL "log" OR "${TARGET_NAME}" STREQUAL "task" OR "${TARGET_NAME}" STREQUAL "pipeline"))
+        # Link Quill to all framework targets since framework headers depend on it
+        if(TARGET quill::quill)
             target_link_libraries(${FULL_TARGET_NAME} INTERFACE quill::quill)
-            # Also add Quill include directories directly
+            # Also add Quill include directories directly for CUDA compilation
             get_target_property(QUILL_INCLUDES quill::quill INTERFACE_INCLUDE_DIRECTORIES)
             if(QUILL_INCLUDES)
                 foreach(INCLUDE_DIR ${QUILL_INCLUDES})
