@@ -143,6 +143,19 @@ if(NOT TARGET quill::quill)
             "}\n"
         )
         
+        # Create Frontend.h compatibility stub
+        file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include/quill/Frontend.h"
+            "#pragma once\n"
+            "namespace quill {\n"
+            "  class Frontend {\n"
+            "  public:\n"
+            "    static void start() {}\n"
+            "    static void stop() {}\n"
+            "    static Frontend& instance() { static Frontend f; return f; }\n"
+            "  };\n"
+            "}\n"
+        )
+        
         # Create minimal quill interface library
         add_library(quill_compat INTERFACE)
         target_include_directories(quill_compat INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill_compat/include")
