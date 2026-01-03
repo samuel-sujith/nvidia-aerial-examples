@@ -106,11 +106,6 @@ if(NOT TARGET quill::quill)
             option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
             add_subdirectory(external/quill)
             
-            # Create missing header wrappers that framework expects
-            file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/quill/include/quill/LogMacros.h"
-                "#pragma once\n#include \"quill/detail/LogMacros.h\"\n"
-            )
-            message(STATUS "Created LogMacros.h wrapper for framework compatibility")
         else()
             message(FATAL_ERROR "Failed to download Quill")
         endif()
