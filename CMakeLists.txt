@@ -93,7 +93,7 @@ if(NOT TARGET quill::quill)
         
         # Download Quill directly to external/quill
         execute_process(
-            COMMAND git clone --branch v2.9.2 --depth 1 https://github.com/odygrd/quill.git quill
+            COMMAND git clone --branch v11.0.2 --depth 1 https://github.com/odygrd/quill.git quill
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external
             RESULT_VARIABLE GIT_RESULT
         )
