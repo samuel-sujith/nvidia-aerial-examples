@@ -90,7 +90,7 @@ if(NOT TARGET quill::quill)
         CPMAddPackage(
             NAME quill
             GITHUB_REPOSITORY odygrd/quill
-            GIT_TAG v1.7.3
+            GIT_TAG v2.5.0
             OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
             SYSTEM YES
         )
