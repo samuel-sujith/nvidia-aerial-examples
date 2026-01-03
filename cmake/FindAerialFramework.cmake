@@ -31,35 +31,21 @@ foreach(QUILL_SEARCH_PATH
     endif()
 endforeach()
 
-# Aerial Framework include directories
+# Aerial Framework include directories (based on aerial-framework-prod structure)
 set(AERIAL_FRAMEWORK_INCLUDE_DIRS
-    ${FRAMEWORK_INCLUDE_BASE}
-    ${FRAMEWORK_INCLUDE_BASE}/pipeline
-    ${FRAMEWORK_INCLUDE_BASE}/tensor
-    ${FRAMEWORK_INCLUDE_BASE}/task
-    ${FRAMEWORK_INCLUDE_BASE}/memory
-    ${FRAMEWORK_INCLUDE_BASE}/utils
-    ${FRAMEWORK_INCLUDE_BASE}/log
-    ${FRAMEWORK_INCLUDE_BASE}/net
+    ${AERIAL_FRAMEWORK_ROOT}/include
+    ${AERIAL_FRAMEWORK_ROOT}/include/pipeline
+    ${AERIAL_FRAMEWORK_ROOT}/include/tensor
+    ${AERIAL_FRAMEWORK_ROOT}/include/task
+    ${AERIAL_FRAMEWORK_ROOT}/include/memory
+    ${AERIAL_FRAMEWORK_ROOT}/include/utils
+    ${AERIAL_FRAMEWORK_ROOT}/include/log
+    ${AERIAL_FRAMEWORK_ROOT}/include/net
     ${AERIAL_FRAMEWORK_ROOT}/include/wise_enum
+    ${AERIAL_FRAMEWORK_ROOT}/include/tensorrt
 )
 
-# Add framework's Quill headers if found
-if(FRAMEWORK_QUILL_INCLUDE)
-    list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${FRAMEWORK_QUILL_INCLUDE})
-endif()
 
-# Check for missing critical headers and create stubs if needed
-if(NOT EXISTS "${FRAMEWORK_INCLUDE_BASE}/task/task_export.hpp")
-    message(STATUS "Creating missing task_export.hpp stub")
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/framework_stubs/task")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/framework_stubs/task/task_export.hpp"
-        "#pragma once\\n"
-        "// Task export stub - no special exports needed for examples\\n"
-        "#define TASK_EXPORT\\n"
-    )
-    list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/framework_stubs")
-endif()
 
 # Find framework libraries with multiple naming conventions
 function(find_framework_library VAR_NAME)
@@ -91,15 +77,15 @@ function(find_framework_library VAR_NAME)
     endif()
 endfunction()
 
-# Find all framework libraries
-find_framework_library(FRAMEWORK_PIPELINE_LIB framework-pipeline libframework-pipeline pipeline)
-find_framework_library(FRAMEWORK_TENSOR_LIB framework-tensor libframework-tensor tensor)
-find_framework_library(FRAMEWORK_UTILS_LIB framework-utils libframework-utils utils)
-find_framework_library(FRAMEWORK_TENSORRT_LIB framework-tensorrt libframework-tensorrt tensorrt)
-find_framework_library(FRAMEWORK_TASK_LIB framework-task libframework-task task)
-find_framework_library(FRAMEWORK_MEMORY_LIB framework-memory libframework-memory memory)
-find_framework_library(FRAMEWORK_LOG_LIB framework-log libframework-log log)
-find_framework_library(FRAMEWORK_NET_LIB framework-net libframework-net net)
+# Find all framework libraries (based on aerial-framework-prod lib structure)
+find_framework_library(FRAMEWORK_PIPELINE_LIB libframework-pipeline.a)
+find_framework_library(FRAMEWORK_TENSOR_LIB libframework-tensor.a)
+find_framework_library(FRAMEWORK_UTILS_LIB libframework-utils.a)
+find_framework_library(FRAMEWORK_TENSORRT_LIB libframework-tensorrt.a)
+find_framework_library(FRAMEWORK_TASK_LIB libtask.a)
+find_framework_library(FRAMEWORK_MEMORY_LIB libmemory.a)
+find_framework_library(FRAMEWORK_LOG_LIB librt_log.a)
+find_framework_library(FRAMEWORK_NET_LIB libnet.a)
 
 # Create imported targets
 function(create_framework_target TARGET_NAME LIBRARY_VAR)
@@ -116,13 +102,7 @@ function(create_framework_target TARGET_NAME LIBRARY_VAR)
         add_library(framework::${TARGET_NAME} ALIAS ${FULL_TARGET_NAME})
         message(STATUS "Created target framework::${TARGET_NAME} -> ${${LIBRARY_VAR}}")
     else()
-        # Create stub interface target if library not found
-        add_library(${FULL_TARGET_NAME} INTERFACE)
-        target_include_directories(${FULL_TARGET_NAME} INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
-        
-        # Create the :: alias  
-        add_library(framework::${TARGET_NAME} ALIAS ${FULL_TARGET_NAME})
-        message(STATUS "Created stub target framework::${TARGET_NAME} (library not found)")
+        message(FATAL_ERROR "Required framework library not found: ${TARGET_NAME}")
     endif()
 endfunction()
 

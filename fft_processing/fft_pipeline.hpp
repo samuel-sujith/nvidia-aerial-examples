@@ -3,11 +3,14 @@
 #include "fft_module.hpp"
 #include "pipeline/ipipeline.hpp"
 #include "task/task.hpp"
+#include "tensor/tensor_info.hpp"
 #include <cufft.h>
 #include <vector>
 #include <memory>
 #include <string>
 #include <map>
+#include <span>
+#include <algorithm>
 
 namespace fft_processing {
 

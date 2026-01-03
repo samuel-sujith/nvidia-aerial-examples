@@ -8,15 +8,7 @@
 #include <string>
 #include <map>
 
-namespace framework {
-namespace pipeline {
-struct PipelineStats {
-    std::size_t total_executions{0};
-    std::size_t failed_executions{0};
-    std::size_t successful_executions{0};
-};
-} // namespace pipeline
-} // namespace framework
+
 
 namespace modulation {
 

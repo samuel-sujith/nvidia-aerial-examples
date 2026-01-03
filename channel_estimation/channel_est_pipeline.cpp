@@ -21,14 +21,7 @@ namespace tensor_extensions {
         return total * sizeof(cuComplex); // Assume complex float for now
     }
     
-    // Helper to get tensor data pointer (stub)
-    void* data(framework::tensor::TensorInfo& tensor) {
-        return nullptr; // Stub - would need actual implementation
-    }
-    
-    const void* data(const framework::tensor::TensorInfo& tensor) {
-        return nullptr; // Stub - would need actual implementation
-    }
+    // Helper to calculate tensor size - TensorInfo provides total_size_in_bytes method
 }
 
 namespace framework::examples {

@@ -16,37 +16,17 @@
 #include "pipeline/imodule_factory.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
+#include "tensor/tensor_arena.hpp"
 #include "task/task.hpp"
-// #include "memory/memory_pool.hpp"  // Not available in current framework
+#include "gsl-lite/gsl-lite.hpp"
+#include "memory/buffer.hpp"
 
 #include "channel_estimator.hpp"
 
-// Simple stubs for missing types
-namespace gsl_lite {
-template<typename T> using not_null = T;
-}
-
 namespace framework {
 namespace pipeline {
-struct PipelineStats {
-    std::size_t total_executions{0};
-    std::size_t failed_executions{0};
-    std::size_t successful_executions{0};
-};
-} // namespace pipeline
 
-// Simple memory pool stub
-namespace memory {
-class MemoryPool {
-public:
-    explicit MemoryPool(std::size_t pool_size) : pool_size_(pool_size) {}
-    ~MemoryPool() = default;
-    std::size_t size() const { return pool_size_; }
-    void* allocate(std::size_t bytes) { return nullptr; } // Stub implementation
-private:
-    std::size_t pool_size_;
-};
-} // namespace memory
+} // namespace pipeline
 } // namespace framework
 
 namespace framework::examples {

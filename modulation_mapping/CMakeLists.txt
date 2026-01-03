@@ -5,7 +5,6 @@
 add_library(modulation_pipeline
     modulator.cu
     modulation_pipeline.cpp
-    ../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(modulation_pipeline
@@ -35,12 +34,10 @@ target_compile_options(modulation_pipeline PRIVATE
 # Example executables
 add_executable(modulation_example
     modulation_example.cpp
-    ../channel_estimation/framework_stubs.cpp
 )
 
 add_executable(modulation_mapping_example
     modulation_mapping_example.cpp
-    ../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(modulation_example

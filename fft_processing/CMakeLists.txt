@@ -4,7 +4,6 @@
 # FFT pipeline library
 add_library(fft_pipeline
     fft_pipeline.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(fft_pipeline
@@ -18,6 +17,7 @@ target_link_libraries(fft_pipeline
 target_include_directories(fft_pipeline
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/stubs
 )
 
 # Inherit properties from parent - no need to set standards again
@@ -35,12 +35,10 @@ target_compile_options(fft_pipeline PRIVATE
 # Example executables
 add_executable(fft_example
     fft_example.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../channel_estimation/framework_stubs.cpp
 )
 
 add_executable(fft_processing_example
     fft_processing_example.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../channel_estimation/framework_stubs.cpp
 )
 
 target_link_libraries(fft_example
@@ -51,12 +49,22 @@ target_link_libraries(fft_example
         common_utils
 )
 
+target_include_directories(fft_example
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/stubs
+)
+
 target_link_libraries(fft_processing_example
     PRIVATE
         fft_pipeline
         CUDA::cudart
         CUDA::cufft
         common_utils
+)
+
+target_include_directories(fft_processing_example
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/stubs
 )
 
 set_target_properties(fft_example PROPERTIES
