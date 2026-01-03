@@ -4,6 +4,7 @@
  */
 
 #include "channel_est_pipeline.hpp"
+#include <iostream>
 #include <stdexcept>
 #include <chrono>
 #include <cuda_runtime.h>
@@ -52,7 +53,8 @@ bool ChannelEstimationPipeline::setup(const pipeline::PipelineSpec& spec) {
         setup_cuda_graph();
         
         // Initialize performance stats
-        stats_ = pipeline::PipelineStats{};
+        total_executions_ = 0;
+        failed_executions_ = 0;
         
         return true;
     } catch (const std::exception& e) {
@@ -79,7 +81,12 @@ void ChannelEstimationPipeline::setup_memory_pool(const pipeline::PipelineSpec& 
     size_t total_memory = (channel_memory + pilot_memory * 2) * 2; // Double buffer
     
     // Create memory pool (implementation depends on framework memory management)
-    memory_pool_ = std::make_unique<::framework::memory::MemoryPool>(total_memory);
+    total_memory_bytes_ = total_memory;
+    // Allocate device memory directly
+    cudaError_t result = cudaMalloc(&device_memory_ptr_, total_memory);
+    if (result != cudaSuccess) {
+        throw std::runtime_error("Failed to allocate device memory");
+    }
 }
 
 void ChannelEstimationPipeline::setup_cuda_graph() {
@@ -160,13 +167,13 @@ task::TaskResult ChannelEstimationPipeline::execute_internal(
             end_time - start_time
         );
         
-        stats_.total_executions++;
+        total_executions_++;
         // Additional timing stats could be added to PipelineStats struct
         
         if (result.is_success()) {
-            stats_.successful_executions++;
+            // Successful execution
         } else {
-            stats_.failed_executions++;
+            failed_executions_++;
         }
         
         return result;
@@ -196,19 +203,23 @@ void ChannelEstimationPipeline::teardown() {
     channel_estimator_.reset();
     
     // Cleanup memory pool
-    memory_pool_.reset();
+    if (device_memory_ptr_) {
+        cudaFree(device_memory_ptr_);
+        device_memory_ptr_ = nullptr;
+    }
 }
 
 bool ChannelEstimationPipeline::is_ready() const {
     return channel_estimator_ && 
-           memory_pool_ && 
+           device_memory_ptr_ && 
            channel_estimator_->is_input_ready(0) && 
            channel_estimator_->is_input_ready(1) &&
            channel_estimator_->is_output_ready(0);
 }
 
-pipeline::PipelineStats ChannelEstimationPipeline::get_stats() const {
-    return stats_;
+void ChannelEstimationPipeline::print_stats() const {
+    std::cout << "Total executions: " << total_executions_ << std::endl;
+    std::cout << "Failed executions: " << failed_executions_ << std::endl;
 }
 
 // Factory implementations
@@ -237,7 +248,7 @@ namespace tensor_utils {
 
 ::framework::tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
-    ::framework::memory::MemoryPool& pool
+    size_t memory_size
 ) {
     // Stub implementation - would normally allocate from pool
     ::framework::tensor::TensorInfo tensor;

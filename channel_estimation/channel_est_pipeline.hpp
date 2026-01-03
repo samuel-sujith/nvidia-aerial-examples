@@ -93,15 +93,16 @@ public:
     /// Check if pipeline is ready for execution
     [[nodiscard]] bool is_ready() const;
 
-    /// Get performance statistics
-    [[nodiscard]] pipeline::PipelineStats get_stats() const;
+    /// Get performance statistics - placeholder
+    void print_stats() const;
 
 private:
     std::string pipeline_id_;
     std::unique_ptr<ChannelEstimator> channel_estimator_;
     
     // Memory management
-    std::unique_ptr<::framework::memory::MemoryPool> memory_pool_;
+    size_t total_memory_bytes_{0};
+    void* device_memory_ptr_{nullptr};
     
     // CUDA graph support
     cudaGraph_t cuda_graph_{};
@@ -109,7 +110,8 @@ private:
     bool graph_instantiated_{false};
     
     // Performance tracking
-    mutable pipeline::PipelineStats stats_;
+    mutable size_t total_executions_{0};
+    mutable size_t failed_executions_{0};
     
     // Internal methods
     void setup_memory_pool(const pipeline::PipelineSpec& spec);
@@ -166,7 +168,7 @@ namespace tensor_utils {
 /// Allocate GPU tensor for complex data
 ::framework::tensor::TensorInfo allocate_complex_tensor(
     const std::vector<std::size_t>& dimensions,
-    ::framework::memory::MemoryPool& pool
+    size_t memory_size
 );
 
 /// Copy tensor data asynchronously
