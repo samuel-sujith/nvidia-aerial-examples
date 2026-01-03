@@ -8,10 +8,7 @@
 #include <cuComplex.h>
 #include <stdexcept>
 
-// Forward declaration for CUDA kernel
 namespace framework::examples {
-    struct ModulationDescriptor;
-}
 
 // QAM constellation look-up tables
 __device__ __constant__ float qpsk_table[4] = {
@@ -75,7 +72,8 @@ __device__ cuComplex modulate_qam256(uint32_t bits) {
     return symbol;
 }
 
-__global__ void qam_modulation_kernel(framework::examples::ModulationDescriptor* desc) {
+// CUDA kernel for QAM modulation
+__global__ void qam_modulation_kernel(ModulationDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (tid >= desc->total_symbols) {
@@ -108,16 +106,16 @@ __global__ void qam_modulation_kernel(framework::examples::ModulationDescriptor*
     // Modulate based on scheme
     cuComplex symbol;
     switch (desc->params->scheme) {
-        case framework::examples::ModulationScheme::QPSK:
+        case ModulationScheme::QPSK:
             symbol = modulate_qpsk(symbol_bits);
             break;
-        case framework::examples::ModulationScheme::QAM_16:
+        case ModulationScheme::QAM_16:
             symbol = modulate_qam16(symbol_bits);
             break;
-        case framework::examples::ModulationScheme::QAM_64:
+        case ModulationScheme::QAM_64:
             symbol = modulate_qam64(symbol_bits);
             break;
-        case framework::examples::ModulationScheme::QAM_256:
+        case ModulationScheme::QAM_256:
             symbol = modulate_qam256(symbol_bits);
             break;
     }
@@ -129,15 +127,12 @@ __global__ void qam_modulation_kernel(framework::examples::ModulationDescriptor*
     desc->output_symbols[tid] = symbol;
 }
 
-namespace framework::examples {
-
 QAMModulator::QAMModulator(
     const std::string& module_id,
     const ModulationParams& params
 ) : module_id_(module_id), params_(params), d_descriptor_(nullptr) {
     allocate_gpu_memory();
 }
-namespace framework::examples {
 QAMModulator::~QAMModulator() {
     deallocate_gpu_memory();
 }
