@@ -11,14 +11,11 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <span>
 
 #include "task/task.hpp"
 #include "tensor/tensor_info.hpp"
-#include "pipeline/imodule.hpp"
-#include "pipeline/types.hpp"
 
-using namespace aerial::examples;
+namespace framework::examples {
 
 namespace aerial::examples {
 
@@ -47,31 +44,23 @@ struct ModulationDescriptor {
 };
 
 /// QAM modulator module
-class QAMModulator final : public framework::pipeline::IModule {
+class QAMModulator final {
 public:
     explicit QAMModulator(
         const std::string& module_id,
         const ModulationParams& params
     );
     
-    ~QAMModulator() override;
+    ~QAMModulator();
 
-    // IModule interface
-    [[nodiscard]] std::string_view get_type_id() const override { return "QAMModulator"; }
-    [[nodiscard]] std::string_view get_instance_id() const override { return module_id_; }
+    // Module interface implementation  
+    std::string_view get_module_id() const { return module_id_; }
     
-    void setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) override;
-    
-    [[nodiscard]] std::vector<framework::tensor::TensorInfo>
-    get_input_tensor_info(std::string_view port_name) const override;
-    
-    [[nodiscard]] std::vector<framework::tensor::TensorInfo>
-    get_output_tensor_info(std::string_view port_name) const override;
-    
-    [[nodiscard]] std::vector<std::string> get_input_port_names() const override;
-    [[nodiscard]] std::vector<std::string> get_output_port_names() const override;
-    
-    void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
+    task::TaskResult execute(
+        const std::vector<tensor::TensorInfo>& inputs,
+        std::vector<tensor::TensorInfo>& outputs,
+        const task::CancellationToken& token
+    );
 
 private:
     std::string module_id_;
@@ -90,6 +79,6 @@ private:
 /// CUDA kernel declarations
 __global__ void qam_modulation_kernel(ModulationDescriptor* desc);
 
-} // namespace aerial::examples
+} // namespace framework::examples
 
 #endif // AERIAL_EXAMPLES_MODULATOR_HPP
