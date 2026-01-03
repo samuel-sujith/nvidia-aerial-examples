@@ -7,16 +7,15 @@ add_library(fft_pipeline
 )
 
 target_link_libraries(fft_pipeline
-    PUBLIC
-        CUDA::cudart
-        CUDA::cufft
-        CUDA::curand
-        common_utils  # This now includes framework targets
+    CUDA::cudart
+    CUDA::cufft
+    CUDA::curand
+    common_utils  # This now includes framework targets
 )
 
 # Link Quill directly if available (needed for framework headers)
 if(TARGET quill::quill)
-    target_link_libraries(fft_pipeline PUBLIC quill::quill)
+    target_link_libraries(fft_pipeline quill::quill)
 endif()
 
 target_include_directories(fft_pipeline
@@ -47,11 +46,10 @@ add_executable(fft_processing_example
 )
 
 target_link_libraries(fft_example
-    PRIVATE
-        fft_pipeline
-        CUDA::cudart
-        CUDA::cufft
-        common_utils
+    fft_pipeline
+    CUDA::cudart
+    CUDA::cufft
+    common_utils
 )
 
 target_include_directories(fft_example
@@ -60,11 +58,10 @@ target_include_directories(fft_example
 )
 
 target_link_libraries(fft_processing_example
-    PRIVATE
-        fft_pipeline
-        CUDA::cudart
-        CUDA::cufft
-        common_utils
+    fft_pipeline
+    CUDA::cudart
+    CUDA::cufft
+    common_utils
 )
 
 target_include_directories(fft_processing_example

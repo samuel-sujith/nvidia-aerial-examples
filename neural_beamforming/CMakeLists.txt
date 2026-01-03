@@ -10,15 +10,14 @@ target_include_directories(neural_beamforming_pipeline
 )
 
 target_link_libraries(neural_beamforming_pipeline
-    PRIVATE
-        common_utils  # This now includes framework targets
-        CUDA::cudart
-        CUDA::cublas
+    common_utils  # This now includes framework targets
+    CUDA::cudart
+    CUDA::cublas
 )
 
 # Link Quill directly if available (needed for framework headers)
 if(TARGET quill::quill)
-    target_link_libraries(neural_beamforming_pipeline PUBLIC quill::quill)
+    target_link_libraries(neural_beamforming_pipeline quill::quill)
 endif()
 
 # Properties inherited from parent - no need to set standards again
@@ -40,10 +39,9 @@ add_executable(neural_beamforming_example
 )
 
 target_link_libraries(neural_beamforming_example
-    PRIVATE 
-        neural_beamforming_pipeline
-        CUDA::cudart
-        CUDA::cublas
+    neural_beamforming_pipeline
+    CUDA::cudart
+    CUDA::cublas
 )
 
 # Comprehensive ML Example
@@ -52,10 +50,9 @@ add_executable(neural_beamforming_ml_example
 )
 
 target_link_libraries(neural_beamforming_ml_example
-    PRIVATE 
-        neural_beamforming_pipeline
-        CUDA::cudart
-        CUDA::cublas
+    neural_beamforming_pipeline
+    CUDA::cudart
+    CUDA::cublas
 )
 
 # Installation rules

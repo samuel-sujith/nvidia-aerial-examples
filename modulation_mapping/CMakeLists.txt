@@ -8,15 +8,14 @@ add_library(modulation_pipeline
 )
 
 target_link_libraries(modulation_pipeline
-    PUBLIC
-        CUDA::cudart
-        CUDA::curand
-        common_utils  # This now includes framework targets
+    CUDA::cudart
+    CUDA::curand
+    common_utils  # This now includes framework targets
 )
 
 # Link Quill directly if available (needed for framework headers)
 if(TARGET quill::quill)
-    target_link_libraries(modulation_pipeline PUBLIC quill::quill)
+    target_link_libraries(modulation_pipeline quill::quill)
 endif()
 
 target_include_directories(modulation_pipeline
@@ -46,13 +45,11 @@ add_executable(modulation_mapping_example
 )
 
 target_link_libraries(modulation_example
-    PRIVATE
-        modulation_pipeline
+    modulation_pipeline
 )
 
 target_link_libraries(modulation_mapping_example
-    PRIVATE
-        modulation_pipeline
+    modulation_pipeline
 )
 
 # Properties inherited from parent

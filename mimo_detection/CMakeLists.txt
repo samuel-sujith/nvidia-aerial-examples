@@ -7,17 +7,16 @@ add_library(mimo_pipeline
 )
 
 target_link_libraries(mimo_pipeline
-    PUBLIC
-        CUDA::cudart
-        CUDA::cublas
-        CUDA::cusolver
-        CUDA::curand
-        common_utils  # This now includes framework targets
+    CUDA::cudart
+    CUDA::cublas
+    CUDA::cusolver
+    CUDA::curand
+    common_utils  # This now includes framework targets
 )
 
 # Link Quill directly if available (needed for framework headers)
 if(TARGET quill::quill)
-    target_link_libraries(mimo_pipeline PUBLIC quill::quill)
+    target_link_libraries(mimo_pipeline quill::quill)
 endif()
 
 target_include_directories(mimo_pipeline
@@ -46,13 +45,11 @@ add_executable(mimo_detection_example
     mimo_detection_example.cpp)
 
 target_link_libraries(mimo_example
-    PRIVATE
-        mimo_pipeline
+    mimo_pipeline
 )
 
 target_link_libraries(mimo_detection_example
-    PRIVATE
-        mimo_pipeline
+    mimo_pipeline
 )
 
 # Properties inherited from parent

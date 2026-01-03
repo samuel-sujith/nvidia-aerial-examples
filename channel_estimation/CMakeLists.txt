@@ -18,7 +18,7 @@ target_link_libraries(channel_estimator
 
 # Link Quill directly if available (needed for framework headers)
 if(TARGET quill::quill)
-    target_link_libraries(channel_estimator PUBLIC quill::quill)
+    target_link_libraries(channel_estimator quill::quill)
 endif()
 
 target_include_directories(channel_estimator PUBLIC
@@ -42,7 +42,7 @@ target_link_libraries(channel_est_pipeline
 
 # Link Quill directly if available (needed for framework headers)
 if(TARGET quill::quill)
-    target_link_libraries(channel_est_pipeline PUBLIC quill::quill)
+    target_link_libraries(channel_est_pipeline quill::quill)
 endif()
 
 target_include_directories(channel_est_pipeline PUBLIC
