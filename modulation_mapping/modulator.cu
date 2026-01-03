@@ -171,57 +171,55 @@ cudaError_t QAMModulator::launch_modulation_kernel(cudaStream_t stream) {
     return cudaGetLastError();
 }
 
-task::TaskResult QAMModulator::execute(
-    const std::vector<tensor::TensorInfo>& inputs,
-    std::vector<tensor::TensorInfo>& outputs,
-    const task::CancellationToken& token
-) {
-    if (token.is_cancellation_requested()) {
-        return task::TaskResult(task::TaskStatus::Cancelled, "Task cancelled");
-    }
-    
-    try {
-        if (inputs.empty() || outputs.empty()) {
-            return task::TaskResult(task::TaskStatus::Failed, "Invalid inputs/outputs");
-        }
-        
-        // Setup descriptor
-        h_descriptor_.input_bits = reinterpret_cast<const uint32_t*>(inputs[0].data());
-        h_descriptor_.output_symbols = reinterpret_cast<cuComplex*>(outputs[0].data());
-        h_descriptor_.params = &params_;
-        h_descriptor_.total_symbols = params_.num_symbols;
-        
-        cudaStream_t stream = 0; // Use default stream
-        
-        // Setup and launch kernel
-        cudaError_t err = setup_modulation_kernel(stream);
-        if (err != cudaSuccess) {
-            return task::TaskResult(task::TaskStatus::Failed, "Setup failed");
-        }
-        
-        err = launch_modulation_kernel(stream);
-        if (err != cudaSuccess) {
-            return task::TaskResult(task::TaskStatus::Failed, "Kernel launch failed");
-        }
-        
-        err = cudaStreamSynchronize(stream);
-        if (err != cudaSuccess) {
-            return task::TaskResult(task::TaskStatus::Failed, "Synchronization failed");
-        }
-        
-        return task::TaskResult(task::TaskStatus::Completed, "Modulation completed");
-        
-    } catch (const std::exception& e) {
-        return task::TaskResult(task::TaskStatus::Failed, e.what());
-    }
+void QAMModulator::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    // Store memory slice for future use - framework will handle memory allocation
 }
 
-bool QAMModulator::is_input_ready(std::size_t input_index) const {
-    return input_index == 0; // Only one input: bit stream
+std::vector<framework::tensor::TensorInfo>
+QAMModulator::get_input_tensor_info(std::string_view port_name) const {
+    if (port_name == "input") {
+        return {framework::tensor::TensorInfo{
+            .dtype = framework::tensor::DataType::UINT32,
+            .shape = {params_.num_symbols / 8}, // Packed bits
+            .strides = {}
+        }};
+    }
+    return {};
 }
 
-bool QAMModulator::is_output_ready(std::size_t output_index) const {
-    return output_index == 0; // Only one output: symbol stream
+std::vector<framework::tensor::TensorInfo>
+QAMModulator::get_output_tensor_info(std::string_view port_name) const {
+    if (port_name == "output") {
+        return {framework::tensor::TensorInfo{
+            .dtype = framework::tensor::DataType::COMPLEX_FLOAT32,
+            .shape = {params_.num_symbols},
+            .strides = {}
+        }};
+    }
+    return {};
+}
+
+std::vector<std::string> QAMModulator::get_input_port_names() const {
+    return {"input"};
+}
+
+std::vector<std::string> QAMModulator::get_output_port_names() const {
+    return {"output"};
+}
+
+void QAMModulator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
+    // Process inputs when they are set by the framework
+    for (const auto& input : inputs) {
+        if (input.port_name == "input" && !input.tensors.empty()) {
+            // Store input for processing
+            const auto& tensor = input.tensors[0];
+            
+            // Setup descriptor for kernel launch
+            h_descriptor_.input_bits = reinterpret_cast<const uint32_t*>(tensor.data());
+            h_descriptor_.params = const_cast<ModulationParams*>(&params_);
+            h_descriptor_.total_symbols = params_.num_symbols;
+        }
+    }
 }
 
 } // namespace aerial::examples

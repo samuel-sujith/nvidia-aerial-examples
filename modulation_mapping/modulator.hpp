@@ -10,10 +10,15 @@
 #include <cuComplex.h>
 #include <memory>
 #include <string>
+#include <vector>
+#include <span>
 
 #include "task/task.hpp"
 #include "tensor/tensor_info.hpp"
 #include "pipeline/imodule.hpp"
+#include "pipeline/types.hpp"
+
+using namespace aerial::examples;
 
 namespace aerial::examples {
 
@@ -52,16 +57,21 @@ public:
     ~QAMModulator() override;
 
     // IModule interface
-    std::string_view get_module_id() const override { return module_id_; }
+    [[nodiscard]] std::string_view get_type_id() const override { return "QAMModulator"; }
+    [[nodiscard]] std::string_view get_instance_id() const override { return module_id_; }
     
-    task::TaskResult execute(
-        const std::vector<tensor::TensorInfo>& inputs,
-        std::vector<tensor::TensorInfo>& outputs,
-        const task::CancellationToken& token
-    ) override;
-
-    bool is_input_ready(std::size_t input_index) const override;
-    bool is_output_ready(std::size_t output_index) const override;
+    void setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) override;
+    
+    [[nodiscard]] std::vector<framework::tensor::TensorInfo>
+    get_input_tensor_info(std::string_view port_name) const override;
+    
+    [[nodiscard]] std::vector<framework::tensor::TensorInfo>
+    get_output_tensor_info(std::string_view port_name) const override;
+    
+    [[nodiscard]] std::vector<std::string> get_input_port_names() const override;
+    [[nodiscard]] std::vector<std::string> get_output_port_names() const override;
+    
+    void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
 
 private:
     std::string module_id_;
