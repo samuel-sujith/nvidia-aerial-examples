@@ -56,22 +56,44 @@ find_package(CUDAToolkit REQUIRED)
 
 # External dependencies - using CPM for proper management
 message(STATUS "Configuring external dependencies...")
+message(STATUS "CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Use local NamedType
+# Use local NamedType if available, otherwise download via CPM
 if(NOT TARGET NamedType)
-    add_subdirectory(external/NamedType)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/CMakeLists.txt")
+        message(STATUS "Using local NamedType")
+        add_subdirectory(external/NamedType)
+    else()
+        message(STATUS "Local NamedType not found at ${CMAKE_CURRENT_SOURCE_DIR}/external/NamedType/CMakeLists.txt")
+        message(STATUS "Downloading NamedType via CPM")
+        CPMAddPackage(
+            NAME NamedType
+            GITHUB_REPOSITORY joboccara/NamedType
+            GIT_TAG v1.1.0
+            OPTIONS "ENABLE_TEST OFF"
+            SYSTEM YES
+        )
+    endif()
 endif()
 
-# Use local Quill library
+# Use local Quill library if available, otherwise download via CPM
 if(NOT TARGET quill::quill)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
+        message(STATUS "Using local external Quill library")
         option(QUILL_BUILD_EXAMPLES "Build examples" OFF)
         option(QUILL_BUILD_TESTS "Build tests" OFF) 
         option(QUILL_BUILD_BENCHMARKS "Build benchmarks" OFF)
         add_subdirectory(external/quill)
-        message(STATUS "Using local external Quill library")
     else()
-        message(FATAL_ERROR "Local Quill library not found at ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
+        message(STATUS "Local Quill not found at ${CMAKE_CURRENT_SOURCE_DIR}/external/quill/CMakeLists.txt")
+        message(STATUS "Downloading Quill via CPM")
+        CPMAddPackage(
+            NAME quill
+            GITHUB_REPOSITORY odygrd/quill
+            GIT_TAG v7.3.0
+            OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
+            SYSTEM YES
+        )
     endif()
 endif()
 
