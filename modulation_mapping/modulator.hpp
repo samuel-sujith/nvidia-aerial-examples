@@ -15,9 +15,8 @@
 #include "task/task.hpp"
 #include "tensor/tensor_info.hpp"
 
-namespace framework::examples {
-
-namespace aerial::examples {
+namespace framework {
+namespace examples {
 
 /// QAM modulation schemes supported
 enum class ModulationScheme {
@@ -79,6 +78,7 @@ private:
 /// CUDA kernel declarations
 __global__ void qam_modulation_kernel(ModulationDescriptor* desc);
 
-} // namespace framework::examples
+} // namespace examples
+} // namespace framework
 
 #endif // AERIAL_EXAMPLES_MODULATOR_HPP

@@ -8,11 +8,7 @@
 #include <cuComplex.h>
 #include <stdexcept>
 
-namespace framework::examples {
-
-// Make types available for CUDA kernel
-using ModulationDescriptor = framework::examples::ModulationDescriptor;
-using ModulationScheme = framework::examples::ModulationScheme;
+namespace framework {\nnamespace examples {
 
 // QAM constellation look-up tables
 __device__ __constant__ float qpsk_table[4] = {
@@ -218,4 +214,4 @@ task::TaskResult QAMModulator::execute(
     }
 }
 
-} // namespace framework::examples
+} // namespace examples\n} // namespace framework
