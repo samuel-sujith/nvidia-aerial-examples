@@ -90,28 +90,66 @@ if(NOT TARGET quill::quill)
         CPMAddPackage(
             NAME quill
             GITHUB_REPOSITORY odygrd/quill
-            GIT_TAG v2.5.0
+            GIT_TAG v2.9.2
             OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
             SYSTEM YES
         )
         
-        # Create compatibility headers for framework compatibility
+        # Create comprehensive compatibility headers for framework compatibility
         if(quill_ADDED)
-            file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/LogMacros.h"
+            # Create compatibility directory structure
+            file(MAKE_DIRECTORY "${quill_SOURCE_DIR}/include/quill")
+            file(MAKE_DIRECTORY "${quill_SOURCE_DIR}/include/quill/detail")
+            
+            # LogMacros.h compatibility
+            file(WRITE "${quill_SOURCE_DIR}/include/quill/LogMacros.h"
                 "#pragma once\n"
-                "#include \"quill/detail/LogMacros.h\"\n"
+                "#include \"quill/Logger.h\"\n"
+                "#include \"quill/LogMacros.h\"\n"
+                "// Compatibility header for Aerial Framework\n"
+                "#define LOG_TRACE_L3(...) QUILL_LOG_TRACE_L3(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_TRACE_L2(...) QUILL_LOG_TRACE_L2(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_TRACE_L1(...) QUILL_LOG_TRACE_L1(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_DEBUG(...) QUILL_LOG_DEBUG(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_INFO(...) QUILL_LOG_INFO(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_WARNING(...) QUILL_LOG_WARNING(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_ERROR(...) QUILL_LOG_ERROR(quill::get_logger(\"root\"), __VA_ARGS__)\n"
+                "#define LOG_CRITICAL(...) QUILL_LOG_CRITICAL(quill::get_logger(\"root\"), __VA_ARGS__)\n"
             )
-            file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/DeferredFormatCodec.h"
+            
+            # DeferredFormatCodec.h compatibility
+            file(WRITE "${quill_SOURCE_DIR}/include/quill/DeferredFormatCodec.h"
+                "#pragma once\n"
+                "#include <string>\n"
+                "#include <cstdint>\n"
+                "// Compatibility header for Aerial Framework\n"
+                "namespace quill {\n"
+                "  template<typename T>\n"
+                "  struct DeferredFormatCodec {\n"
+                "    static constexpr size_t size() noexcept { return sizeof(T); }\n"
+                "    static void encode(std::byte*, T const&) noexcept {}\n"
+                "    static T decode(std::byte const*) noexcept { return T{}; }\n"
+                "  };\n"
+                "}\n"
+            )
+            
+            # Backend.h compatibility
+            file(WRITE "${quill_SOURCE_DIR}/include/quill/Backend.h"
                 "#pragma once\n"
                 "// Compatibility header for Aerial Framework\n"
-                "namespace quill { template<typename T> struct DeferredFormatCodec {}; }\n"
+                "namespace quill {\n"
+                "  class Backend {\n"
+                "  public:\n"
+                "    static void start() {}\n"
+                "    static void stop() {}\n"
+                "    static Backend& instance() { static Backend b; return b; }\n"
+                "  private:\n"
+                "    Backend() = default;\n"
+                "  };\n"
+                "}\n"
             )
-            file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/Backend.h"
-                "#pragma once\n"
-                "// Compatibility header for Aerial Framework\n"
-                "namespace quill { class Backend { public: static void start() {} static void stop() {} }; }\n"
-            )
-            message(STATUS "Created Quill compatibility headers")
+            
+            message(STATUS "Created comprehensive Quill compatibility headers")
         endif()
     endif()
 endif()
