@@ -28,7 +28,7 @@ target_include_directories(mimo_pipeline
 set_target_properties(mimo_pipeline PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
-    CUDA_STANDARD 17
+    CUDA_STANDARD 20
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION ON
 )

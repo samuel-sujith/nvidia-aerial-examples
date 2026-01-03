@@ -10,6 +10,11 @@ endif()
 # and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Set CUDA standard to C++20 to match framework requirements  
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_EXTENSIONS OFF)
+
 # Enable position-independent code globally for all static libraries Required for CUDA device
 # linking and potential shared library usage
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
