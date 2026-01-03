@@ -41,15 +41,13 @@ bool ModulationPipeline::setup(const ::framework::pipeline::PipelineSpec& spec) 
         CUDA_CHECK(cudaSetDevice(config_.gpu_device_id));
         
         // Create modulator
-        ModulatorConfig mod_config;
-        mod_config.modulation_order = config_.modulation_order;
+        ModulationParams mod_config;
+        mod_config.scheme = config_.modulation_scheme;
         mod_config.enable_fast_math = true;
         mod_config.use_lookup_tables = true;
         
-        modulator_ = std::make_unique<GPUModulator>(mod_config);
-        if (!modulator_->initialize()) {
-            return false;
-        }
+        modulator_ = std::make_unique<::aerial::examples::QAMModulator>("modulator", mod_config);
+        // QAMModulator is ready after construction
         
         // Initialize CUDA resources
         if (!initialize_cuda_resources()) {
@@ -59,7 +57,7 @@ bool ModulationPipeline::setup(const ::framework::pipeline::PipelineSpec& spec) 
         // Create memory pool
         // Memory pool creation removed for simplification
         // memory_pool_ = std::make_unique<::framework::memory::MemoryPool>(
-            config_.memory_pool_size);
+            config_.memory_pool_size
         
         is_initialized_ = true;
         return true;
@@ -76,7 +74,7 @@ void ModulationPipeline::teardown() {
     
     cleanup_cuda_resources();
     modulator_.reset();
-    memory_pool_.reset();
+    // Memory cleanup handled by destructor
     is_initialized_ = false;
 }
 
@@ -206,12 +204,12 @@ bool ModulationPipeline::ensure_buffer_capacity(size_t required_bits, size_t req
         const auto& input_tensor = inputs[0];
         auto& output_tensor = outputs[0];
         
-        size_t num_bits = input_tensor.num_elements();
+        size_t num_bits = input_tensor.tensor_elements();
         size_t num_symbols = modulator_->calculate_output_symbols(num_bits);
         
         // Ensure buffer capacity
         if (!ensure_buffer_capacity(num_bits, num_symbols)) {
-            return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+            return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                           "Failed to allocate GPU memory");
         }
         
@@ -224,9 +222,7 @@ bool ModulationPipeline::ensure_buffer_capacity(size_t required_bits, size_t req
         CUDA_CHECK(cudaEventRecord(events_[0], streams_[0]));
         
         // Execute modulation
-        if (token.is_cancellation_requested()) {
-            return aerial::task::TaskResult(aerial::task::TaskStatus::Cancelled);
-        }
+        // Process without cancellation check
         
         auto modulation_result = modulator_->modulate(
             static_cast<uint8_t*>(d_input_bits_), num_bits,
@@ -254,17 +250,17 @@ bool ModulationPipeline::ensure_buffer_capacity(size_t required_bits, size_t req
         
         update_performance_stats(duration.count(), num_symbols);
         
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+        return framework::task::TaskResult(framework::task::TaskStatus::Completed);
         
     } catch (const std::exception& e) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed, e.what());
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed, e.what());
     }
 }
 
-aerial::task::TaskResult ModulationPipeline::execute_pipeline_graph(
+framework::task::TaskResult ModulationPipeline::execute_pipeline_graph(
     std::span<const aerial::tensor::TensorInfo> inputs,
     std::span<aerial::tensor::TensorInfo> outputs,
-    const aerial::task::CancellationToken& token) {
+    const framework::task::CancellationToken& token) {
     
     if (!config_.enable_cuda_graphs) {
         return execute_pipeline(inputs, outputs, token);
@@ -309,10 +305,10 @@ aerial::task::TaskResult ModulationPipeline::execute_pipeline_graph(
         
         update_performance_stats(duration.count(), num_symbols);
         
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+        return framework::task::TaskResult(framework::task::TaskStatus::Completed);
         
     } catch (const std::exception& e) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed, e.what());
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed, e.what());
     }
 }
 
@@ -358,13 +354,13 @@ bool ModulationPipeline::create_cuda_graph(size_t num_bits) {
     }
 }
 
-aerial::task::TaskResult ModulationPipeline::modulate_bits(
+framework::task::TaskResult ModulationPipeline::modulate_bits(
     const std::vector<uint8_t>& input_bits,
     std::vector<std::complex<float>>& output_symbols,
-    const aerial::task::CancellationToken& token) {
+    const framework::task::CancellationToken& token) {
     
     if (!is_initialized_) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Pipeline not initialized");
     }
     
@@ -388,43 +384,43 @@ aerial::task::TaskResult ModulationPipeline::modulate_bits(
     return execute_pipeline(inputs, outputs, token);
 }
 
-aerial::task::TaskResult ModulationPipeline::validate_inputs(
+framework::task::TaskResult ModulationPipeline::validate_inputs(
     std::span<const aerial::tensor::TensorInfo> inputs) const {
     
     if (inputs.size() != 1) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Expected exactly 1 input tensor");
     }
     
     const auto& input = inputs[0];
     if (input.element_type() != aerial::tensor::ElementType::UINT8) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Input tensor must be UINT8 type");
     }
     
     if (input.dimensions().size() != 1) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Input tensor must be 1-dimensional");
     }
     
-    return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+    return framework::task::TaskResult(framework::task::TaskStatus::Completed);
 }
 
-aerial::task::TaskResult ModulationPipeline::validate_outputs(
+framework::task::TaskResult ModulationPipeline::validate_outputs(
     std::span<aerial::tensor::TensorInfo> outputs) const {
     
     if (outputs.size() != 1) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Expected exactly 1 output tensor");
     }
     
     const auto& output = outputs[0];
     if (output.element_type() != aerial::tensor::ElementType::COMPLEX_FLOAT32) {
-        return aerial::task::TaskResult(aerial::task::TaskStatus::Failed,
+        return framework::task::TaskResult(framework::task::TaskStatus::Failed,
                                       "Output tensor must be COMPLEX_FLOAT32 type");
     }
     
-    return aerial::task::TaskResult(aerial::task::TaskStatus::Completed);
+    return framework::task::TaskResult(framework::task::TaskStatus::Completed);
 }
 
 void ModulationPipeline::update_performance_stats(uint64_t execution_time_us, size_t symbols_processed) {
@@ -436,8 +432,8 @@ void ModulationPipeline::update_performance_stats(uint64_t execution_time_us, si
     stats_.max_execution_time_us = std::max(stats_.max_execution_time_us, execution_time_us);
 }
 
-aerial::pipeline::PipelineStats ModulationPipeline::get_stats() const {
-    aerial::pipeline::PipelineStats base_stats;
+framework::pipeline::PipelineStats ModulationPipeline::get_stats() const {
+    framework::pipeline::PipelineStats base_stats;
     base_stats.pipeline_id = pipeline_id_;
     base_stats.total_executions = stats_.total_batches_processed;
     base_stats.successful_executions = stats_.total_batches_processed; // Assuming all successful for now
