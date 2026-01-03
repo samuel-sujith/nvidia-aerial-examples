@@ -179,7 +179,7 @@ task::TaskResult ChannelEstimationPipeline::execute_internal(
         return result;
         
     } catch (const std::exception& e) {
-        stats_.failed_executions++;
+        failed_executions_++;
         return task::TaskResult(
             task::TaskStatus::Failed,
             std::string("Pipeline execution failed: ") + e.what()
