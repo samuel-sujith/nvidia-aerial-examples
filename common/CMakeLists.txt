@@ -16,9 +16,13 @@ endif()
 # Also link standard dependencies
 target_link_libraries(common_utils INTERFACE
     NamedType
-    quill::quill
     CUDA::cudart
 )
+
+# Link Quill if available
+if(TARGET quill::quill)
+    target_link_libraries(common_utils INTERFACE quill::quill)
+endif()
 
 # Install headers
 install(FILES

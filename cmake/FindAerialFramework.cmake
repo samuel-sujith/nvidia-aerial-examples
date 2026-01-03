@@ -45,6 +45,15 @@ set(AERIAL_FRAMEWORK_INCLUDE_DIRS
     ${AERIAL_FRAMEWORK_ROOT}/include/tensorrt
 )
 
+# Get Quill include directories if available
+if(TARGET quill::quill)
+    get_target_property(QUILL_INCLUDE_DIRS quill::quill INTERFACE_INCLUDE_DIRECTORIES)
+    if(QUILL_INCLUDE_DIRS)
+        list(APPEND AERIAL_FRAMEWORK_INCLUDE_DIRS ${QUILL_INCLUDE_DIRS})
+        message(STATUS "Added Quill include directories: ${QUILL_INCLUDE_DIRS}")
+    endif()
+endif()
+
 
 
 # Find framework libraries with multiple naming conventions
@@ -103,6 +112,11 @@ function(create_framework_target TARGET_NAME LIBRARY_VAR)
         )
         target_include_directories(${FULL_TARGET_NAME} INTERFACE ${AERIAL_FRAMEWORK_INCLUDE_DIRS})
         
+        # Link Quill if this target needs it (log, task targets need Quill)
+        if(TARGET quill::quill AND ("${TARGET_NAME}" STREQUAL "log" OR "${TARGET_NAME}" STREQUAL "task" OR "${TARGET_NAME}" STREQUAL "pipeline"))
+            target_link_libraries(${FULL_TARGET_NAME} INTERFACE quill::quill)
+        endif()
+        
         # Create the :: alias
         add_library(framework::${TARGET_NAME} ALIAS ${FULL_TARGET_NAME})
         message(STATUS "Created target framework::${TARGET_NAME} -> ${${LIBRARY_VAR}}")
@@ -160,10 +174,14 @@ if(_available_targets)
     target_link_libraries(framework_all INTERFACE
         ${_available_targets}
         NamedType
-        quill::quill
         CUDA::cudart
         CUDA::cuda_driver
     )
+    
+    # Also link Quill if available
+    if(TARGET quill::quill)
+        target_link_libraries(framework_all INTERFACE quill::quill)
+    endif()
 endif()
 
 # Create the :: alias for the convenience target
