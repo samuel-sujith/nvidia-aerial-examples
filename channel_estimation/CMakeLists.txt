@@ -33,9 +33,13 @@ if(TARGET quill::quill)
             string(REGEX MATCH "\\$<BUILD_INTERFACE:([^>]+)>" MATCH_RESULT "${INCLUDE_DIR}")
             if(CMAKE_MATCH_1)
                 target_include_directories(channel_estimator PUBLIC ${CMAKE_MATCH_1})
+                # Also add for CUDA specifically
+                target_compile_options(channel_estimator PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-I${CMAKE_MATCH_1}>)
                 message(STATUS "Added Quill include to channel_estimator: ${CMAKE_MATCH_1}")
             elseif(NOT INCLUDE_DIR MATCHES "\\$<.*>")
                 target_include_directories(channel_estimator PUBLIC ${INCLUDE_DIR})
+                # Also add for CUDA specifically  
+                target_compile_options(channel_estimator PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-I${INCLUDE_DIR}>)
                 message(STATUS "Added Quill include to channel_estimator: ${INCLUDE_DIR}")
             endif()
         endforeach()
