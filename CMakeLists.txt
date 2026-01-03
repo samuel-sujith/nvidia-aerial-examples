@@ -94,6 +94,20 @@ if(NOT TARGET quill::quill)
             OPTIONS "QUILL_BUILD_EXAMPLES OFF" "QUILL_BUILD_TESTS OFF" "QUILL_BUILD_BENCHMARKS OFF"
             SYSTEM YES
         )
+        
+        # Create compatibility headers for framework compatibility
+        if(quill_ADDED)
+            file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/LogMacros.h"
+                "#pragma once\n"
+                "#include \"quill/detail/LogMacros.h\"\n"
+            )
+            file(WRITE "${quill_SOURCE_DIR}/quill/include/quill/DeferredFormatCodec.h"
+                "#pragma once\n"
+                "// Compatibility header for Aerial Framework\n"
+                "#include \"quill/detail/FormatArgTypes.h\"\n"
+            )
+            message(STATUS "Created Quill compatibility headers")
+        endif()
     endif()
 endif()
 
