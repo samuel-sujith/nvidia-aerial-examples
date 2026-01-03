@@ -10,6 +10,10 @@
 
 namespace framework::examples {
 
+// Make types available for CUDA kernel
+using ModulationDescriptor = framework::examples::ModulationDescriptor;
+using ModulationScheme = framework::examples::ModulationScheme;
+
 // QAM constellation look-up tables
 __device__ __constant__ float qpsk_table[4] = {
     0.707106781f, -0.707106781f, 0.707106781f, -0.707106781f
