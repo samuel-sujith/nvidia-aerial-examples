@@ -1,4 +1,5 @@
 #include "modulation_pipeline.hpp"
+#include <iostream>
 #include <chrono>
 #include <algorithm>
 #include <sstream>
@@ -125,12 +126,8 @@ std::string_view ModulationPipeline::get_pipeline_id() const {
     return pipeline_id_;
 }
 
-::framework::pipeline::PipelineStats ModulationPipeline::get_stats() const {
-    ::framework::pipeline::PipelineStats stats;
-    stats.total_executions = stats_.total_batches_processed;
-    stats.failed_executions = 0; // Simplified
-    stats.successful_executions = stats_.total_batches_processed;
-    return stats;
+void ModulationPipeline::print_stats() const {
+    std::cout << "Total batches processed: " << stats_.total_batches_processed << std::endl;
 }
 
 // Missing method implementations

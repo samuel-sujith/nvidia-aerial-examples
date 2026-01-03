@@ -103,7 +103,7 @@ public:
     void teardown();
     bool is_ready() const { return is_initialized_; }
     
-    ::framework::pipeline::PipelineStats get_stats() const;
+    void print_stats() const;
     
     // Modulation-specific interface
     ModulationPipelineStats get_modulation_stats() const { return stats_; }
