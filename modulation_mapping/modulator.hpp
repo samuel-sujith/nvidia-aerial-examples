@@ -42,7 +42,7 @@ struct ModulationDescriptor {
 };
 
 /// QAM modulator module
-class QAMModulator final : public pipeline::IModule {
+class QAMModulator final : public framework::pipeline::IModule {
 public:
     explicit QAMModulator(
         const std::string& module_id,
@@ -78,9 +78,7 @@ private:
 };
 
 /// CUDA kernel declarations
-extern "C" {
-    __global__ void qam_modulation_kernel(ModulationDescriptor* desc);
-}
+__global__ void qam_modulation_kernel(ModulationDescriptor* desc);
 
 } // namespace aerial::examples
 

@@ -8,6 +8,8 @@
 #include <cuComplex.h>
 #include <stdexcept>
 
+using namespace aerial::examples;
+
 // QAM constellation look-up tables
 __device__ __constant__ float qpsk_table[4] = {
     0.707106781f, -0.707106781f, 0.707106781f, -0.707106781f
