@@ -549,7 +549,7 @@ cudaError_t ModulationMapper::launch_modulation_kernel(cudaStream_t stream) {
     
     if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
         dim3 gridSize((h_descriptor_.total_symbols + blockSize.x - 1) / blockSize.x);
-        
+        cudaError_t kernel_err = cudaSuccess;
         if (params_.scheme == ModulationScheme::QPSK) {
             qpsk_demodulation_kernel<<<gridSize, blockSize, 0, stream>>>(
                 d_input_symbols_,
@@ -559,11 +559,20 @@ cudaError_t ModulationMapper::launch_modulation_kernel(cudaStream_t stream) {
                 params_.soft_output,
                 h_descriptor_.total_symbols
             );
+            kernel_err = cudaGetLastError();
+            if (kernel_err != cudaSuccess) {
+                throw std::runtime_error(std::string("QPSK demodulation kernel launch failed: ") + cudaGetErrorString(kernel_err));
+            }
+            // Synchronize to catch runtime errors
+            kernel_err = cudaStreamSynchronize(stream);
+            if (kernel_err != cudaSuccess) {
+                throw std::runtime_error(std::string("QPSK demodulation kernel execution failed: ") + cudaGetErrorString(kernel_err));
+            }
         }
         // Add other demodulation schemes as needed
     }
     
-    return cudaGetLastError();
+    return cudaSuccess;
 }
 
 void ModulationMapper::initialize_constellation() {
