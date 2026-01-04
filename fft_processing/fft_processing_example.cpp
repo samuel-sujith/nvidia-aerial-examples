@@ -81,7 +81,11 @@ int main() {
         
         // Create CUDA stream
         cudaStream_t stream;
-        CUDA_CHECK_THROW(cudaStreamCreate(&stream));
+        cudaError_t err = cudaStreamCreate(&stream);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to create CUDA stream: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         
         // Warmup pipeline
         std::cout << "Warming up pipeline..." << std::endl;
@@ -102,11 +106,24 @@ int main() {
         cuComplex* d_output;
         size_t data_size = total_samples * sizeof(cuComplex);
         
-        CUDA_CHECK_THROW(cudaMalloc(&d_input, data_size));
-        CUDA_CHECK_THROW(cudaMalloc(&d_output, data_size));
+        err = cudaMalloc(&d_input, data_size);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to allocate input memory: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
+        
+        err = cudaMalloc(&d_output, data_size);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to allocate output memory: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         
         // Copy input data to GPU
-        CUDA_CHECK_THROW(cudaMemcpy(d_input, input_signal.data(), data_size, cudaMemcpyHostToDevice));
+        err = cudaMemcpy(d_input, input_signal.data(), data_size, cudaMemcpyHostToDevice);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to copy input data to GPU: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         
         // Setup PortInfo for pipeline execution
         std::vector<framework::pipeline::PortInfo> input_ports(1);
@@ -141,11 +158,19 @@ int main() {
         
         pipeline->execute_stream(stream);
         
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to synchronize stream: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         auto end_time = std::chrono::high_resolution_clock::now();
         
         // Copy results back to host
-        CUDA_CHECK_THROW(cudaMemcpy(output_signal.data(), d_output, data_size, cudaMemcpyDeviceToHost));
+        err = cudaMemcpy(output_signal.data(), d_output, data_size, cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to copy results from GPU: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         
         // Print results
         print_signal_stats(output_signal, "Output Signal (FFT)");
@@ -165,15 +190,28 @@ int main() {
         inverse_pipeline->warmup(stream);
         
         // Use FFT output as IFFT input
-        CUDA_CHECK_THROW(cudaMemcpy(d_input, d_output, data_size, cudaMemcpyDeviceToDevice));
+        err = cudaMemcpy(d_input, d_output, data_size, cudaMemcpyDeviceToDevice);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to copy data on GPU: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         
         inverse_pipeline->configure_io(dynamic_params, input_ports, output_ports, stream);
         inverse_pipeline->execute_stream(stream);
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to synchronize IFFT stream: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         
         // Copy results back
         std::vector<cuComplex> reconstructed_signal(total_samples);
-        CUDA_CHECK_THROW(cudaMemcpy(reconstructed_signal.data(), d_output, data_size, cudaMemcpyDeviceToHost));
+        err = cudaMemcpy(reconstructed_signal.data(), d_output, data_size, cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to copy IFFT results from GPU: " << cudaGetErrorString(err) << std::endl;
+            return -1;
+        }
         print_signal_stats(reconstructed_signal, "Reconstructed Signal (IFFT)");
         
         // Calculate reconstruction error
@@ -186,9 +224,9 @@ int main() {
         std::cout << "Mean reconstruction error: " << mean_error << std::endl;
         
         // Cleanup
-        CUDA_CHECK_THROW(cudaFree(d_input));
-        CUDA_CHECK_THROW(cudaFree(d_output));
-        CUDA_CHECK_THROW(cudaStreamDestroy(stream));
+        cudaFree(d_input);
+        cudaFree(d_output);
+        cudaStreamDestroy(stream);
         
         std::cout << "\\nFFT processing pipeline created successfully!" << std::endl;
         std::cout << "Forward FFT size: " << params.fft_size << std::endl;
