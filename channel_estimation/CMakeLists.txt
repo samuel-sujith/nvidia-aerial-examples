@@ -1,176 +1,81 @@
-#
-# Remove project-specific settings - inherit from parent
-# The parent CMakeLists.txt already sets these properly
+cmake_minimum_required(VERSION 3.18)
+project(channel_estimation LANGUAGES CXX CUDA)
 
-# Channel Estimator Library
-add_library(channel_estimator SHARED
-    channel_estimator.cu
-    channel_estimator.hpp
-)
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Use common utilities and framework targets
-target_link_libraries(channel_estimator
-    common_utils
-    CUDA::cudart
-    CUDA::cublas  # If using cuBLAS for MMSE
-    CUDA::cufft   # If using FFT for frequency domain operations
-)
+# Set CUDA standard
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-# Link Quill directly if available (needed for framework headers)
-if(TARGET quill::quill)
-    target_link_libraries(channel_estimator quill::quill)
+# Find required packages
+find_package(CUDAToolkit REQUIRED)
+
+# Set include directories
+set(AERIAL_FRAMEWORK_INCLUDE_DIR "${AERIAL_FRAMEWORK_ROOT}/include")
+
+# Check if aerial framework is available
+if(NOT EXISTS ${AERIAL_FRAMEWORK_INCLUDE_DIR})
+    message(FATAL_ERROR "Aerial framework headers not found at ${AERIAL_FRAMEWORK_INCLUDE_DIR}")
 endif()
+
+# Include directories
+include_directories(${AERIAL_FRAMEWORK_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
+# CUDA compile options
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_70 -std=c++17")
+set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -g -G")
+set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE} -O3")
+
+# Create the channel estimation module library
+add_library(channel_estimator 
+    channel_estimation_module.cu
+    channel_estimation_pipeline.cpp
+)
 
 target_include_directories(channel_estimator PUBLIC
+    ${AERIAL_FRAMEWORK_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Add Quill include directories directly for CUDA compilation
-if(TARGET quill::quill)
-    get_target_property(QUILL_INCLUDES quill::quill INTERFACE_INCLUDE_DIRECTORIES)
-    if(QUILL_INCLUDES)
-        foreach(INCLUDE_DIR ${QUILL_INCLUDES})
-            string(REGEX MATCH "\\$<BUILD_INTERFACE:([^>]+)>" MATCH_RESULT "${INCLUDE_DIR}")
-            if(CMAKE_MATCH_1)
-                target_include_directories(channel_estimator PUBLIC ${CMAKE_MATCH_1})
-                # Also add for CUDA specifically
-                target_compile_options(channel_estimator PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-I${CMAKE_MATCH_1}>)
-                message(STATUS "Added Quill include to channel_estimator: ${CMAKE_MATCH_1}")
-            elseif(NOT INCLUDE_DIR MATCHES "\\$<.*>")
-                target_include_directories(channel_estimator PUBLIC ${INCLUDE_DIR})
-                # Also add for CUDA specifically  
-                target_compile_options(channel_estimator PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-I${INCLUDE_DIR}>)
-                message(STATUS "Added Quill include to channel_estimator: ${INCLUDE_DIR}")
-            endif()
-        endforeach()
-    endif()
-endif()
-
-# Set CUDA properties
-set_property(TARGET channel_estimator PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-
-# Channel Estimation Pipeline Library  
-add_library(channel_est_pipeline SHARED
-    channel_est_pipeline.cpp
-    channel_est_pipeline.hpp
+target_link_libraries(channel_estimator 
+    CUDA::cudart
+    CUDA::cuda_driver
 )
 
-target_link_libraries(channel_est_pipeline
-    channel_estimator
-    common_utils
-    # Framework libraries will be linked via common_utils
+# Set properties for CUDA compilation
+set_target_properties(channel_estimator PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    POSITION_INDEPENDENT_CODE ON
 )
 
-# Link Quill directly if available (needed for framework headers)
-if(TARGET quill::quill)
-    target_link_libraries(channel_est_pipeline quill::quill)
-endif()
-
-target_include_directories(channel_est_pipeline PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# Example executable
+# Create the example executable
 add_executable(channel_estimation_example
     channel_estimation_example.cpp
 )
 
 target_link_libraries(channel_estimation_example
-    channel_est_pipeline
     channel_estimator
     CUDA::cudart
 )
 
-# Performance test executable (using existing example file)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/channel_estimation_benchmark.cpp")
-    add_executable(channel_estimation_benchmark
-        channel_estimation_benchmark.cpp
-    )
-    
-    target_link_libraries(channel_estimation_benchmark
-        channel_est_pipeline
-        channel_estimator
-        CUDA::cudart
-    )
-else()
-    message(STATUS "channel_estimation_benchmark.cpp not found, skipping benchmark build")
+target_include_directories(channel_estimation_example PRIVATE
+    ${AERIAL_FRAMEWORK_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Compiler-specific options
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(channel_estimator PRIVATE -Wall -Wextra -fPIC)
+    target_compile_options(channel_estimation_example PRIVATE -Wall -Wextra)
 endif()
 
-# Unit tests (if testing framework is available)
-option(BUILD_TESTS "Build unit tests" ON)
-if(BUILD_TESTS AND TARGET GTest::gtest_main)
-    add_executable(channel_estimation_tests
-        tests/channel_estimator_test.cpp
-        tests/channel_pipeline_test.cpp
-    )
-    
-    target_link_libraries(channel_estimation_tests
-        channel_est_pipeline
-        channel_estimator
-        GTest::gtest_main
-        CUDA::cudart
-    )
-    
-    # Register with CTest
-    include(GoogleTest)
-    gtest_discover_tests(channel_estimation_tests)
-endif()
-
-# Installation
-install(TARGETS channel_estimator channel_est_pipeline
+# Install targets
+install(TARGETS channel_estimator channel_estimation_example
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
 )
-
-install(FILES
-    channel_estimator.hpp
-    channel_est_pipeline.hpp
-    DESTINATION include/aerial/examples/channel_estimation
-)
-
-# Install executables
-install(TARGETS channel_estimation_example
-    RUNTIME DESTINATION bin
-)
-
-# Install benchmark if it was built
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/channel_estimation_benchmark.cpp")
-    install(TARGETS channel_estimation_benchmark
-        RUNTIME DESTINATION bin
-    )
-endif()
-
-# Documentation
-option(BUILD_DOCS "Build documentation" OFF)
-if(BUILD_DOCS AND CMAKE_BUILD_TYPE STREQUAL "Release")
-    find_package(Doxygen)
-    if(DOXYGEN_FOUND)
-        configure_file(
-            ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in
-            ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-            @ONLY
-        )
-        
-        add_custom_target(channel_estimation_docs ALL
-            ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-            COMMENT "Generating API documentation with Doxygen"
-            VERBATIM
-        )
-        
-        install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html/
-            DESTINATION share/doc/aerial-channel-estimation
-        )
-    endif()
-endif()
-
-# Packaging
-set(CPACK_PACKAGE_NAME "aerial-channel-estimation-example")
-set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${PROJECT_DESCRIPTION})
-set(CPACK_PACKAGE_VENDOR "NVIDIA Corporation")
-
-include(CPack)

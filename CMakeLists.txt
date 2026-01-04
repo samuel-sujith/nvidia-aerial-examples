@@ -1,28 +1,22 @@
-# NVIDIA Aerial Framework Examples
-cmake_minimum_required(VERSION 3.23) # Align with aerial-framework requirement
+# NVIDIA Aerial Framework Examples - Channel Estimation Only
+cmake_minimum_required(VERSION 3.18) # Simplified requirement for single module
 
-# Only set the cxx_standard if it is not set by someone else
-if(NOT DEFINED CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 20)
-endif()
-
-# strongly encouraged to enable this globally to avoid conflicts between -Wpedantic being enabled
-# and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
+# Set standards
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Set CUDA standard to C++20 to match framework requirements  
-set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS OFF)
 
-# Enable position-independent code globally for all static libraries Required for CUDA device
-# linking and potential shared library usage
+# Enable position-independent code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-project(AerialExamples
+project(ChannelEstimationExample
     VERSION 1.0.0
-    DESCRIPTION "NVIDIA Aerial Framework GPU-Accelerated 5G Signal Processing Examples"
-    LANGUAGES CXX C ASM CUDA
+    DESCRIPTION "NVIDIA Aerial Framework Channel Estimation Example"
+    LANGUAGES CXX CUDA
 )
 
 # Build configuration
@@ -30,23 +24,8 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Options
-option(BUILD_TESTS "Build unit tests" ON)
-option(BUILD_BENCHMARKS "Build benchmark executables" ON)
-option(ENABLE_PROFILING "Enable profiling support" OFF)
-option(ENABLE_DEBUG_INFO "Enable debug information" OFF)
-
-# Set default CPM source cache if not already configured 
-if(NOT DEFINED CPM_SOURCE_CACHE AND NOT DEFINED ENV{CPM_SOURCE_CACHE})
-    set(ENV{CPM_SOURCE_CACHE} "$ENV{HOME}/.cache/CPM")
-    message(STATUS "CPM source cache: $ENV{HOME}/.cache/CPM (default)")
-else()
-    if(DEFINED CPM_SOURCE_CACHE)
-        message(STATUS "CPM source cache: ${CPM_SOURCE_CACHE} (CMake variable)")
-    else()
-        message(STATUS "CPM source cache: $ENV{CPM_SOURCE_CACHE} (environment variable)")
-    endif()
-endif()
+# Only build the channel estimation module
+add_subdirectory(channel_estimation)
 
 # Download CPM.cmake
 file(DOWNLOAD
