@@ -184,44 +184,75 @@ std::vector<framework::pipeline::PortInfo> FFTProcessor::get_outputs() const {
     std::vector<framework::pipeline::PortInfo> outputs = output_ports_;
     
     if (!outputs.empty() && !outputs[0].tensors.empty()) {
+        // Use d_output_data_ as the output pointer since we can't get external pointer here
         outputs[0].tensors[0].device_ptr = d_output_data_;
+        // Update current_output_ for execute method
+        const_cast<FFTProcessor*>(this)->current_output_ = d_output_data_;
     }
     
     return outputs;
 }
 
 void FFTProcessor::execute(cudaStream_t stream) {
-    // Launch preprocessing if needed
-    if (params_.enable_windowing || !current_input_) {
-        cudaError_t err = launch_preprocessing_kernel(stream);
+    if (!current_input_ || !current_output_) {
+        throw std::runtime_error("Input or output not set - call set_inputs and get_outputs first");
+    }
+    
+    // For windowing, copy input to internal buffer first, then apply window
+    cuComplex* fft_input = const_cast<cuComplex*>(current_input_);
+    cuComplex* fft_output = current_output_;
+    
+    if (params_.enable_windowing) {
+        // Copy input to internal buffer and apply windowing
+        cudaError_t err = cudaMemcpy(d_input_data_, current_input_, 
+                                   h_descriptor_.total_samples * sizeof(cuComplex), 
+                                   cudaMemcpyDeviceToDevice);
         if (err != cudaSuccess) {
-            throw std::runtime_error("FFT preprocessing kernel launch failed");
+            throw std::runtime_error("Failed to copy input for windowing");
         }
+        
+        // Update descriptor for windowing kernel
+        h_descriptor_.input_data = d_input_data_;
+        h_descriptor_.output_data = d_input_data_; // Apply windowing in-place
+        
+        err = cudaMemcpy(d_descriptor_, &h_descriptor_, sizeof(FFTDescriptor), cudaMemcpyHostToDevice);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("Failed to update descriptor for windowing");
+        }
+        
+        err = launch_preprocessing_kernel(stream);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("FFT windowing kernel launch failed");
+        }
+        
+        fft_input = d_input_data_;
     }
     
     // Execute CUFFT
     cufftResult result;
     if (params_.direction == FFTDirection::FORWARD) {
-        result = cufftExecC2C(fft_plan_, 
-                             const_cast<cuComplex*>(current_input_ ? current_input_ : d_output_data_), 
-                             d_output_data_, 
-                             CUFFT_FORWARD);
+        result = cufftExecC2C(fft_plan_, fft_input, fft_output, CUFFT_FORWARD);
     } else {
-        result = cufftExecC2C(fft_plan_, 
-                             const_cast<cuComplex*>(current_input_ ? current_input_ : d_output_data_), 
-                             d_output_data_, 
-                             CUFFT_INVERSE);
+        result = cufftExecC2C(fft_plan_, fft_input, fft_output, CUFFT_INVERSE);
     }
     
     if (result != CUFFT_SUCCESS) {
         throw std::runtime_error("CUFFT execution failed");
     }
     
-    // Launch postprocessing if needed
+    // Apply normalization for inverse FFT if needed
     if (params_.direction == FFTDirection::INVERSE && params_.normalize) {
-        cudaError_t err = launch_postprocessing_kernel(stream);
+        h_descriptor_.input_data = current_output_;
+        h_descriptor_.output_data = current_output_;
+        
+        cudaError_t err = cudaMemcpy(d_descriptor_, &h_descriptor_, sizeof(FFTDescriptor), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
-            throw std::runtime_error("FFT postprocessing kernel launch failed");
+            throw std::runtime_error("Failed to update descriptor for normalization");
+        }
+        
+        err = launch_postprocessing_kernel(stream);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("FFT normalization kernel launch failed");
         }
     }
 }
