@@ -105,9 +105,9 @@ __global__ void qpsk_demodulation_kernel(
                 soft_bits[bit_idx + 1] = 4.0f * imag_part * norm_factor / sigma_sq;
             }
             
-            // Hard decision
-            output_bits[bit_idx] = (real_part > 0.0f) ? 0 : 1;
-            output_bits[bit_idx + 1] = (imag_part > 0.0f) ? 0 : 1;
+            // Hard decision with explicit casting
+            output_bits[bit_idx] = (uint8_t)((real_part > 0.0f) ? 0 : 1);
+            output_bits[bit_idx + 1] = (uint8_t)((imag_part > 0.0f) ? 0 : 1);
         }
     }
 }
@@ -299,6 +299,10 @@ void ModulationMapper::configure_io(
 }
 
   void ModulationMapper::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
+    // Reset pointers first
+    current_bits_ = nullptr;
+    current_symbols_ = nullptr;
+    
     // Extract device pointers from input ports
     for (const auto& port : inputs) {
         if (port.name == "input_bits" && !port.tensors.empty()) {
@@ -336,6 +340,14 @@ void ModulationMapper::execute(cudaStream_t stream) {
     if ((params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) && 
         !current_symbols_) {
         throw std::runtime_error("Input symbols not set for demodulation");
+    }
+    
+    // Clear output buffers first
+    if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
+        cudaMemset(d_output_bits_, 0, h_descriptor_.total_bits * sizeof(uint8_t));
+    }
+    if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
+        cudaMemset(d_output_symbols_, 0, h_descriptor_.total_symbols * sizeof(cuComplex));
     }
     
     // Copy input data to internal buffers if needed
