@@ -74,20 +74,6 @@ void ChannelEstimationPipeline::execute_stream(cudaStream_t stream) {
     }
 }
 
-void ChannelEstimationPipeline::execute_stream(cudaStream_t stream) {
-    if (channel_estimator_) {
-        channel_estimator_->execute(stream);
-    }
-}
-
-void ChannelEstimationPipeline::execute_graph(cudaStream_t stream) {
-    // For this example, graph mode is the same as stream mode
-    // In a real implementation, this would use CUDA graphs
-    if (channel_estimator_) {
-        channel_estimator_->execute(stream);
-    }
-}
-
 void ChannelEstimationPipeline::execute_graph(cudaStream_t stream) {
     // For this example, graph mode is the same as stream mode
     // In a real implementation, this would use CUDA graphs
