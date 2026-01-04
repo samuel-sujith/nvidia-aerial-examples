@@ -48,6 +48,14 @@ public:
 
     // IPipeline interface
     [[nodiscard]] std::string_view get_pipeline_id() const override { return pipeline_id_; }
+    
+    [[nodiscard]] std::size_t get_num_external_inputs() const override {
+        return 2; // rx_pilots and tx_pilots
+    }
+    
+    [[nodiscard]] std::size_t get_num_external_outputs() const override {
+        return 1; // channel_estimates
+    }
 
     void setup() override;
     
