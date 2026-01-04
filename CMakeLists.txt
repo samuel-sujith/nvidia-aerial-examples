@@ -24,9 +24,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Only build the channel estimation module
-add_subdirectory(channel_estimation)
-
 # Download CPM.cmake
 file(DOWNLOAD
     https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.40.2/CPM.cmake
