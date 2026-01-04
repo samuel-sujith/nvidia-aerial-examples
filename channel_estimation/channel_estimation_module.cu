@@ -209,7 +209,14 @@ void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo>
 }
 
 std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
-    return output_ports_;
+    // Return a copy of output_ports_ with updated device pointers
+    std::vector<framework::pipeline::PortInfo> outputs = output_ports_;
+    
+    if (!outputs.empty() && !outputs[0].tensors.empty()) {
+        outputs[0].tensors[0].device_ptr = d_channel_estimates_;
+    }
+    
+    return outputs;
 }
 
 void ChannelEstimator::execute(cudaStream_t stream) {
@@ -225,12 +232,34 @@ void ChannelEstimator::allocate_gpu_memory() {
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate GPU memory for descriptor");
     }
+    
+    // Allocate memory for pilot symbols and channel estimates
+    size_t pilot_size = params_.num_resource_blocks * 12 / params_.pilot_spacing * sizeof(cuComplex);
+    size_t estimates_size = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex);
+    
+    err = cudaMalloc(&d_pilot_symbols_, pilot_size);
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to allocate GPU memory for pilot symbols");
+    }
+    
+    err = cudaMalloc(&d_channel_estimates_, estimates_size);
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to allocate GPU memory for channel estimates");
+    }
 }
 
 void ChannelEstimator::deallocate_gpu_memory() {
     if (d_descriptor_) {
         cudaFree(d_descriptor_);
         d_descriptor_ = nullptr;
+    }
+    if (d_pilot_symbols_) {
+        cudaFree(d_pilot_symbols_);
+        d_pilot_symbols_ = nullptr;
+    }
+    if (d_channel_estimates_) {
+        cudaFree(d_channel_estimates_);
+        d_channel_estimates_ = nullptr;
     }
 }
 
@@ -277,51 +306,15 @@ framework::pipeline::ModuleMemoryRequirements ChannelEstimator::get_requirements
     return reqs;
 }
 
-framework::pipeline::MemoryCharacteristics
+framework::pipeline::OutputPortMemoryCharacteristics
 ChannelEstimator::get_output_memory_characteristics(std::string_view port_name) const {
-    framework::pipeline::MemoryCharacteristics chars{};
+    framework::pipeline::OutputPortMemoryCharacteristics chars{};
     
     if (port_name == "channel_estimates") {
         chars.provides_fixed_address_for_zero_copy = true;
-        chars.requires_fixed_address_for_zero_copy = false;
     }
     
     return chars;
-}
-
-std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
-    std::vector<framework::pipeline::PortInfo> outputs;
-    
-    // Create tensor info for channel estimates
-    framework::tensor::TensorInfo tensor_info(
-        framework::tensor::TensorInfo::DataType::TensorC64F,
-        {static_cast<int64_t>(params_.num_rx_antennas),
-         static_cast<int64_t>(params_.num_ofdm_symbols),
-         static_cast<int64_t>(params_.num_resource_blocks * 12)}
-    );
-    
-    // Create device tensor
-    framework::pipeline::DeviceTensor output_tensor{
-        .device_ptr = d_channel_estimates_,
-        .tensor_info = tensor_info
-    };
-    
-    // Create port info
-    framework::pipeline::PortInfo port_info{
-        .name = "channel_estimates",
-        .tensors = {output_tensor}
-    };
-    
-    outputs.push_back(port_info);
-    return outputs;
-}
-
-void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
-    for (const auto& port : inputs) {
-        if (port.name == "pilot_symbols" && !port.tensors.empty()) {
-            d_pilot_symbols_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
-        }
-    }
 }
 
 } // namespace channel_estimation

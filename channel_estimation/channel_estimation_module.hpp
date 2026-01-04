@@ -87,9 +87,9 @@ public:
     [[nodiscard]] std::vector<std::string> get_input_port_names() const override;
     [[nodiscard]] std::vector<std::string> get_output_port_names() const override;
     
-    framework::pipeline::ModuleMemoryRequirements get_requirements() const override;
+    [[nodiscard]] framework::pipeline::ModuleMemoryRequirements get_requirements() const override;
     
-    framework::pipeline::MemoryCharacteristics
+    [[nodiscard]] framework::pipeline::OutputPortMemoryCharacteristics
     get_output_memory_characteristics(std::string_view port_name) const override;
     
     void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
@@ -113,6 +113,10 @@ private:
     // GPU resources
     ChannelEstDescriptor* d_descriptor_;
     ChannelEstDescriptor h_descriptor_;
+    
+    // Device memory pointers
+    cuComplex* d_pilot_symbols_{nullptr};
+    cuComplex* d_channel_estimates_{nullptr};
     
     // Current tensor pointers (set during set_inputs)
     const cuComplex* current_rx_pilots_{nullptr};
