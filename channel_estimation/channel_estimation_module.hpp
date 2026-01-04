@@ -14,6 +14,7 @@
 #include <span>
 
 #include "pipeline/imodule.hpp"
+#include "pipeline/istream_executor.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "tensor/data_types.hpp"
@@ -50,7 +51,8 @@ struct ChannelEstDescriptor {
 };
 
 /// Channel estimator module implementing the framework interface
-class ChannelEstimator final : public framework::pipeline::IModule {
+class ChannelEstimator final : public framework::pipeline::IModule, 
+                               public framework::pipeline::IStreamExecutor {
 public:
     /**
      * Constructor
@@ -76,8 +78,6 @@ public:
         cudaStream_t stream
     ) override;
     
-    void execute(cudaStream_t stream) override;
-    
     [[nodiscard]] std::vector<framework::tensor::TensorInfo>
     get_input_tensor_info(std::string_view port_name) const override;
     
@@ -89,6 +89,13 @@ public:
     
     void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
+    
+    // IModule casting methods
+    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return nullptr; }
+    framework::pipeline::IStreamExecutor* as_stream_executor() override { return this; }
+    
+    // IStreamExecutor interface  
+    void execute(cudaStream_t stream) override;
 
 private:
     std::string module_id_;
