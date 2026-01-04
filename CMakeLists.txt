@@ -158,8 +158,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
 # Common utilities library
 add_subdirectory(common)
 
-# Example modules - only channel_estimation for now
+# Example modules
 add_subdirectory(channel_estimation)
+add_subdirectory(fft_processing)
 
 # Tests (use CPM for GTest like aerial-framework)
 if(BUILD_TESTS)
