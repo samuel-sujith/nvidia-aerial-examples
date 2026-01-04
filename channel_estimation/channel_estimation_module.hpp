@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <span>
 
 #include "pipeline/imodule.hpp"
 #include "pipeline/types.hpp"
@@ -64,50 +65,51 @@ public:
     ~ChannelEstimator() override;
 
     // IModule interface implementation
-    [[nodiscard]] std::string_view get_module_type() const override { return "channel_estimator"; }
-    [[nodiscard]] std::string_view get_module_id() const override { return module_id_; }
+    [[nodiscard]] std::string_view get_type_id() const override { return "channel_estimator"; }
+    [[nodiscard]] std::string_view get_instance_id() const override { return module_id_; }
     
-    void setup(const framework::pipeline::ModuleMemorySlice& memory_slice) override;
+    void setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) override;
     void warmup(cudaStream_t stream) override;
     
     void configure_io(
         const framework::pipeline::DynamicParams& params,
-        std::span<const framework::tensor::TensorInfo> inputs,
-        std::span<framework::tensor::TensorInfo> outputs,
         cudaStream_t stream
     ) override;
     
     void execute(cudaStream_t stream) override;
     
-    [[nodiscard]] framework::pipeline::ModuleMemoryRequirements 
-    get_memory_requirements() const override;
+    [[nodiscard]] std::vector<framework::tensor::TensorInfo>
+    get_input_tensor_info(std::string_view port_name) const override;
     
-    [[nodiscard]] std::span<const framework::tensor::TensorInfo> 
-    get_input_tensor_info() const override;
+    [[nodiscard]] std::vector<framework::tensor::TensorInfo>
+    get_output_tensor_info(std::string_view port_name) const override;
     
-    [[nodiscard]] std::span<const framework::tensor::TensorInfo> 
-    get_output_tensor_info() const override;
+    [[nodiscard]] std::vector<std::string> get_input_port_names() const override;
+    [[nodiscard]] std::vector<std::string> get_output_port_names() const override;
+    
+    void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
+    [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
 
 private:
     std::string module_id_;
     ChannelEstParams params_;
     
-    // Tensor info for inputs/outputs
-    std::vector<framework::tensor::TensorInfo> input_tensor_info_;
-    std::vector<framework::tensor::TensorInfo> output_tensor_info_;
+    // Port information
+    std::vector<framework::pipeline::PortInfo> input_ports_;
+    std::vector<framework::pipeline::PortInfo> output_ports_;
     
     // GPU resources
     ChannelEstDescriptor* d_descriptor_;
     ChannelEstDescriptor h_descriptor_;
     
-    // Current tensor pointers (set during configure_io)
+    // Current tensor pointers (set during set_inputs)
     const cuComplex* current_rx_pilots_{nullptr};
     const cuComplex* current_tx_pilots_{nullptr};
     cuComplex* current_channel_estimates_{nullptr};
     
     void allocate_gpu_memory();
     void deallocate_gpu_memory();
-    void setup_tensor_info();
+    void setup_port_info();
     cudaError_t launch_channel_estimation_kernel(cudaStream_t stream);
 };
 

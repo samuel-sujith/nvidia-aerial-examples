@@ -73,30 +73,42 @@ ChannelEstimator::ChannelEstimator(
     const ChannelEstParams& params
 ) : module_id_(module_id), params_(params), d_descriptor_(nullptr) {
     
-    setup_tensor_info();
+    setup_port_info();
 }
 
 ChannelEstimator::~ChannelEstimator() {
     deallocate_gpu_memory();
 }
 
-void ChannelEstimator::setup_tensor_info() {
+void ChannelEstimator::setup_port_info() {
     using namespace framework::tensor;
     
-    // Input 0: Received pilot symbols [num_pilots]
-    input_tensor_info_.emplace_back(
+    // Setup input ports
+    input_ports_.resize(2);
+    
+    // Input port 0: rx_pilots
+    input_ports_[0].name = "rx_pilots";
+    input_ports_[0].tensors.resize(1);
+    input_ports_[0].tensors[0].tensor_info = TensorInfo(
         NvDataType::TensorC32F,
         std::vector<std::size_t>{static_cast<std::size_t>(params_.num_resource_blocks * 12 / params_.pilot_spacing)}
     );
     
-    // Input 1: Reference pilot symbols [num_pilots]  
-    input_tensor_info_.emplace_back(
+    // Input port 1: tx_pilots  
+    input_ports_[1].name = "tx_pilots";
+    input_ports_[1].tensors.resize(1);
+    input_ports_[1].tensors[0].tensor_info = TensorInfo(
         NvDataType::TensorC32F,
         std::vector<std::size_t>{static_cast<std::size_t>(params_.num_resource_blocks * 12 / params_.pilot_spacing)}
     );
     
-    // Output 0: Channel estimates [num_subcarriers * num_symbols]
-    output_tensor_info_.emplace_back(
+    // Setup output ports
+    output_ports_.resize(1);
+    
+    // Output port 0: channel_estimates
+    output_ports_[0].name = "channel_estimates";
+    output_ports_[0].tensors.resize(1);
+    output_ports_[0].tensors[0].tensor_info = TensorInfo(
         NvDataType::TensorC32F,
         std::vector<std::size_t>{
             static_cast<std::size_t>(params_.num_resource_blocks * 12),
@@ -105,7 +117,7 @@ void ChannelEstimator::setup_tensor_info() {
     );
 }
 
-void ChannelEstimator::setup(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
     allocate_gpu_memory();
 }
 
@@ -115,22 +127,8 @@ void ChannelEstimator::warmup(cudaStream_t stream) {
 
 void ChannelEstimator::configure_io(
     const framework::pipeline::DynamicParams& params,
-    std::span<const framework::tensor::TensorInfo> inputs,
-    std::span<framework::tensor::TensorInfo> outputs,
     cudaStream_t stream
 ) {
-    // Validate tensor count
-    if (inputs.size() != 2) {
-        throw std::runtime_error("Channel estimator requires exactly 2 inputs");
-    }
-    if (outputs.size() != 1) {
-        throw std::runtime_error("Channel estimator requires exactly 1 output");
-    }
-    
-    // Store pointers to current tensors (these will be set by the pipeline)
-    // For now, we assume tensors have device_ptr field or similar
-    // In actual implementation, this would get device pointers from TensorInfo
-    
     // Update descriptor with current tensor pointers
     h_descriptor_.rx_pilots = current_rx_pilots_;
     h_descriptor_.tx_pilots = current_tx_pilots_;
@@ -153,34 +151,72 @@ void ChannelEstimator::configure_io(
     }
 }
 
+std::vector<framework::tensor::TensorInfo> ChannelEstimator::get_input_tensor_info(std::string_view port_name) const {
+    for (const auto& port : input_ports_) {
+        if (port.name == port_name) {
+            std::vector<framework::tensor::TensorInfo> result;
+            for (const auto& tensor : port.tensors) {
+                result.push_back(tensor.tensor_info);
+            }
+            return result;
+        }
+    }
+    return {};
+}
+
+std::vector<framework::tensor::TensorInfo> ChannelEstimator::get_output_tensor_info(std::string_view port_name) const {
+    for (const auto& port : output_ports_) {
+        if (port.name == port_name) {
+            std::vector<framework::tensor::TensorInfo> result;
+            for (const auto& tensor : port.tensors) {
+                result.push_back(tensor.tensor_info);
+            }
+            return result;
+        }
+    }
+    return {};
+}
+
+std::vector<std::string> ChannelEstimator::get_input_port_names() const {
+    std::vector<std::string> names;
+    for (const auto& port : input_ports_) {
+        names.push_back(port.name);
+    }
+    return names;
+}
+
+std::vector<std::string> ChannelEstimator::get_output_port_names() const {
+    std::vector<std::string> names;
+    for (const auto& port : output_ports_) {
+        names.push_back(port.name);
+    }
+    return names;
+}
+
+void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
+    if (inputs.size() != 2) {
+        throw std::runtime_error("Channel estimator requires exactly 2 input ports");
+    }
+    
+    // Extract device pointers from input ports
+    for (const auto& port : inputs) {
+        if (port.name == "rx_pilots" && !port.tensors.empty()) {
+            current_rx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
+        } else if (port.name == "tx_pilots" && !port.tensors.empty()) {
+            current_tx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
+        }
+    }
+}
+
+std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
+    return output_ports_;
+}
+
 void ChannelEstimator::execute(cudaStream_t stream) {
     cudaError_t err = launch_channel_estimation_kernel(stream);
     if (err != cudaSuccess) {
         throw std::runtime_error("Channel estimation kernel launch failed");
     }
-}
-
-framework::pipeline::ModuleMemoryRequirements ChannelEstimator::get_memory_requirements() const {
-    framework::pipeline::ModuleMemoryRequirements req;
-    
-    // Static descriptor
-    req.static_kernel_descriptor_bytes = sizeof(ChannelEstDescriptor);
-    
-    // No dynamic descriptor needed for this module
-    req.dynamic_kernel_descriptor_bytes = 0;
-    
-    // Device tensor memory (managed by pipeline)
-    req.device_tensor_bytes = 0;
-    
-    return req;
-}
-
-std::span<const framework::tensor::TensorInfo> ChannelEstimator::get_input_tensor_info() const {
-    return input_tensor_info_;
-}
-
-std::span<const framework::tensor::TensorInfo> ChannelEstimator::get_output_tensor_info() const {
-    return output_tensor_info_;
 }
 
 void ChannelEstimator::allocate_gpu_memory() {
