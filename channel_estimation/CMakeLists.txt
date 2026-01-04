@@ -46,6 +46,7 @@ target_link_libraries(channel_estimator
     framework::pipeline
     framework::tensor
     framework::task
+    NamedType
 )
 
 # Set properties for CUDA compilation
