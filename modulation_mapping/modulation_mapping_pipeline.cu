@@ -174,6 +174,17 @@ bool ModulationPipeline::demodulate(
             return false;
         }
         
+        // Ensure d_output_buffer_ points to the correct device output bits buffer for demodulation
+        // This is a direct fix for the output buffer mismatch bug
+        if (mapper_) {
+            // Get the device pointer for output bits from the mapper
+            auto outputs = mapper_->get_outputs();
+            for (const auto& port : outputs) {
+                if (port.name == "output_bits" && !port.tensors.empty()) {
+                    d_output_buffer_ = port.tensors[0].device_ptr;
+                }
+            }
+        }
         // Process on GPU
         bool success = process_device(d_input_buffer_, d_output_buffer_, false, stream);
         if (!success) {
