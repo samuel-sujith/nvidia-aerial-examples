@@ -47,6 +47,7 @@ target_link_libraries(channel_estimator
     framework::tensor
     framework::task
     NamedType
+    quill::quill
 )
 
 # Set properties for CUDA compilation
@@ -64,6 +65,7 @@ add_executable(channel_estimation_example
 target_link_libraries(channel_estimation_example
     channel_estimator
     CUDA::cudart
+    quill::quill
 )
 
 target_include_directories(channel_estimation_example PRIVATE
