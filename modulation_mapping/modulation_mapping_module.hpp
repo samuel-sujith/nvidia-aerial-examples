@@ -136,7 +136,13 @@ public:
      * @brief Get bits per symbol for current modulation scheme
      * @return Bits per symbol
      */
-    int get_bits_per_symbol() const;\n    \n    /**\n     * @brief Set processing mode for modulation/demodulation\n     * @param mode The processing mode to set\n     */\n    void set_processing_mode(ProcessingMode mode) { params_.mode = mode; }
+    int get_bits_per_symbol() const;
+    
+    /**
+     * @brief Set processing mode for modulation/demodulation
+     * @param mode The processing mode to set
+     */
+    void set_processing_mode(ProcessingMode mode) { params_.mode = mode; }
 
 private:
     std::string module_id_;
