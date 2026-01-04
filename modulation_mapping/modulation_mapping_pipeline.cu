@@ -249,6 +249,13 @@ bool ModulationPipeline::process_device(
             );
         }
         
+        // Set the processing mode based on operation
+        if (is_modulation) {
+            mapper_->set_processing_mode(modulation_mapping::ProcessingMode::MODULATION);
+        } else {
+            mapper_->set_processing_mode(modulation_mapping::ProcessingMode::DEMODULATION);
+        }
+        
         // Set inputs to mapper
         mapper_->set_inputs(inputs);
         
