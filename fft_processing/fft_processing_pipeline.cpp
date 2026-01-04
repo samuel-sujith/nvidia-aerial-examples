@@ -22,13 +22,14 @@ void FFTProcessingPipeline::setup() {
         throw std::runtime_error("FFT processor not initialized");
     }
     
-    // Setup memory slice for the module
-    memory_slice_.device_tensor_bytes = memory_size_;
-    memory_slice_.device_tensor_ptr = device_memory_;
+    // Allocate pipeline memory
+    allocate_pipeline_memory();
     
+    // Setup module memory slice
+    framework::pipeline::ModuleMemorySlice memory_slice;
     // In a real implementation, this would provide the proper memory slice
     
-    fft_processor_->setup_memory(memory_slice_);
+    fft_processor_->setup_memory(memory_slice);
     
     // Setup tensor connections
     setup_tensor_connections();
@@ -91,11 +92,7 @@ void FFTProcessingPipeline::allocate_pipeline_memory() {
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate pipeline device memory");
     }
-    
-    memory_slice_ = framework::pipeline::ModuleMemorySlice{
-        .device_tensor_bytes = MEMORY_SIZE,
-        .device_tensor_ptr = device_memory_
-    };
+
 }
 
 void FFTProcessingPipeline::setup_tensor_connections() {

@@ -76,7 +76,6 @@ private:
     // Memory management
     void* device_memory_{nullptr};
     size_t memory_size_{0};
-    framework::pipeline::ModuleMemorySlice memory_slice_;
     
     void allocate_pipeline_memory();
     void setup_tensor_connections();
