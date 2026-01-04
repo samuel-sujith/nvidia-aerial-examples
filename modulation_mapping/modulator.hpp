@@ -14,6 +14,7 @@
 
 #include "task/task.hpp"
 #include "tensor/tensor_info.hpp"
+#include "pipeline/imodule.hpp"
 
 namespace framework {
 namespace examples {
@@ -43,23 +44,23 @@ struct ModulationDescriptor {
 };
 
 /// QAM modulator module
-class QAMModulator final {
+class QAMModulator final : public pipeline::IModule {
 public:
     explicit QAMModulator(
         const std::string& module_id,
         const ModulationParams& params
     );
     
-    ~QAMModulator();
+    ~QAMModulator() override;
 
-    // Module interface implementation  
-    std::string_view get_module_id() const { return module_id_; }
+    // IModule interface implementation  
+    std::string_view get_module_id() const override { return module_id_; }
     
     task::TaskResult execute(
         const std::vector<tensor::TensorInfo>& inputs,
         std::vector<tensor::TensorInfo>& outputs,
         const task::CancellationToken& token
-    );
+    ) override;
 
 private:
     std::string module_id_;

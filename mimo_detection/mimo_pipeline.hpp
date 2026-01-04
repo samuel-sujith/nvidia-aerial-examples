@@ -1,16 +1,28 @@
 #pragma once
 
-#include "mimo_detector.hpp"
-#include <aerial/pipeline/IPipeline.hpp>
-#include <aerial/memory/MemoryPool.hpp>
-#include <aerial/task/TaskResult.hpp>
-#include <cublas_v2.h>
-#include <cusolver_dense.h>
-#include <vector>
 #include <memory>
 #include <string>
+#include <vector>
+#include <span>
+#include <map>
+#include <chrono>
 
-namespace mimo_detection {
+#include "pipeline/ipipeline.hpp"
+#include "pipeline/imodule.hpp"
+#include "pipeline/imodule_factory.hpp"
+#include "pipeline/ipipeline_factory.hpp"
+#include "pipeline/types.hpp"
+#include "pipeline/pipeline_stats.hpp"
+#include "tensor/tensor_info.hpp"
+#include "memory/memory_pool.hpp"
+#include <cublas_v2.h>
+#include <cusolver_dense.h>
+#include <cuda_runtime.h>
+#include <cuComplex.h>
+
+#include "mimo_detector.hpp"
+
+namespace framework::examples {
 
 /// MIMO detection algorithm type
 enum class MIMOAlgorithm {
@@ -19,6 +31,15 @@ enum class MIMOAlgorithm {
     MLApprox,        ///< Maximum Likelihood approximation
     SIC,             ///< Successive Interference Cancellation
     VBlast           ///< Vertical-Bell Labs Layered Space-Time
+};
+
+/// Modulation order for symbol detection
+enum class ModulationOrder {
+    BPSK = 1,
+    QPSK = 2,
+    QAM16 = 4,
+    QAM64 = 6,
+    QAM256 = 8
 };
 
 /// Configuration for MIMO pipeline
@@ -79,11 +100,62 @@ struct MIMOPipelineStats {
 };
 
 /// High-performance MIMO detection pipeline with GPU optimization
-class MIMOPipeline final : public aerial::pipeline::IPipeline {
+class MIMOPipeline final : public pipeline::IPipeline {
+public:
+    /**
+     * Constructor
+     * @param pipeline_id Unique identifier for this pipeline
+     * @param module_factory Factory for creating modules
+     * @param spec Pipeline specification
+     */
+    MIMOPipeline(
+        std::string pipeline_id,
+        std::shared_ptr<pipeline::IModuleFactory> module_factory,
+        const pipeline::PipelineSpec& spec
+    );
+    
+    ~MIMOPipeline() override;
+
+    // Non-copyable, non-movable
+    MIMOPipeline(const MIMOPipeline&) = delete;
+    MIMOPipeline& operator=(const MIMOPipeline&) = delete;
+    MIMOPipeline(MIMOPipeline&&) = delete;
+    MIMOPipeline& operator=(MIMOPipeline&&) = delete;
+
+    // IPipeline interface
+    [[nodiscard]] std::string_view get_pipeline_id() const override { return pipeline_id_; }
+    [[nodiscard]] std::size_t get_num_external_inputs() const override { return 2; } // Channel matrix + received symbols
+    [[nodiscard]] std::size_t get_num_external_outputs() const override { return 1; } // Detected symbols
+
+    void setup() override;
+    void warmup(cudaStream_t stream) override;
+    void configure_io(
+        const pipeline::DynamicParams& params,
+        std::span<const pipeline::PortInfo> external_inputs,
+        std::span<pipeline::PortInfo> external_outputs,
+        cudaStream_t stream
+    ) override;
+    void execute_stream(cudaStream_t stream) override;
+    void execute_graph(cudaStream_t stream) override;
+    
+    /// Cleanup pipeline resources
+    void teardown();
+
+    /// Check if pipeline is ready for execution
+    [[nodiscard]] bool is_ready() const;
+
+    /// Get performance statistics
+    [[nodiscard]] pipeline::PipelineStats get_stats() const;
+    
+    // MIMO-specific interface
+    MIMOPipelineStats get_mimo_stats() const { return stats_; }
+
 private:
+    std::string pipeline_id_;
+    std::shared_ptr<pipeline::IModuleFactory> module_factory_;
     MIMOPipelineConfig config_;
     std::unique_ptr<MIMODetector> mimo_detector_;
-    std::unique_ptr<aerial::memory::MemoryPool> memory_pool_;
+    std::unique_ptr<memory::MemoryPool> memory_pool_;
     
     // CUDA resources
     cublasHandle_t cublas_handle_;
@@ -114,76 +186,11 @@ private:
     
     // State management
     bool is_initialized_{false};
-    std::string pipeline_id_;
+    bool is_setup_{false};
     
-public:
-    explicit MIMOPipeline(const MIMOPipelineConfig& config);
-    ~MIMOPipeline();
-    
-    // IPipeline interface
-    std::string_view get_pipeline_id() const override;
-    std::size_t get_num_external_inputs() const override { return 2; } // Channel + received symbols
-    std::size_t get_num_external_outputs() const override { return 1; }
-    
-    aerial::task::TaskResult execute_pipeline(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
-    
-    aerial::task::TaskResult execute_pipeline_graph(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
-    
-    bool setup(const aerial::pipeline::PipelineSpec& spec) override;
-    void teardown() override;
-    bool is_ready() const override { return is_initialized_; }
-    
-    aerial::pipeline::PipelineStats get_stats() const override;
-    
-    // MIMO-specific interface
-    MIMOPipelineStats get_mimo_stats() const { return stats_; }
-    
-    /// Detect transmitted symbols using specified algorithm
-    aerial::task::TaskResult detect_symbols(
-        const std::vector<std::vector<std::complex<float>>>& channel_matrix,
-        const std::vector<std::complex<float>>& received_symbols,
-        std::vector<std::complex<float>>& detected_symbols,
-        size_t num_tx_antennas,
-        size_t num_rx_antennas,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Batch MIMO detection for multiple symbol vectors
-    aerial::task::TaskResult detect_batch(
-        const std::vector<std::vector<std::complex<float>>>& channel_matrix,
-        const std::vector<std::vector<std::complex<float>>>& received_batches,
-        std::vector<std::vector<std::complex<float>>>& detected_batches,
-        size_t num_tx_antennas,
-        size_t num_rx_antennas,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Execute Zero-Forcing detection
-    aerial::task::TaskResult execute_zero_forcing(
-        const std::vector<std::vector<std::complex<float>>>& H,
-        const std::vector<std::complex<float>>& y,
-        std::vector<std::complex<float>>& x_hat,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Execute MMSE detection
-    aerial::task::TaskResult execute_mmse(
-        const std::vector<std::vector<std::complex<float>>>& H,
-        const std::vector<std::complex<float>>& y,
-        std::vector<std::complex<float>>& x_hat,
-        float noise_variance,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Execute ML approximation detection
-    aerial::task::TaskResult execute_ml_approximation(
-        const std::vector<std::vector<std::complex<float>>>& H,
-        const std::vector<std::complex<float>>& y,
-        std::vector<std::complex<float>>& x_hat,
-        const std::vector<std::complex<float>>& constellation,
-        const aerial::task::CancellationToken& token = {});
+    // Input/output buffers
+    std::vector<pipeline::PortInfo> external_inputs_;
+    std::vector<pipeline::PortInfo> external_outputs_;
     
     /// Update configuration dynamically
     bool update_config(const MIMOPipelineConfig& new_config);

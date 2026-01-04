@@ -55,7 +55,7 @@ struct ChannelEstLaunchConfig {
 };
 
 /// Channel estimator class implementing the framework task pattern
-class ChannelEstimator final {
+class ChannelEstimator final : public pipeline::IModule {
 public:
     /**
      * Constructor
@@ -67,16 +67,16 @@ public:
         const ChannelEstParams& params
     );
     
-    ~ChannelEstimator();
+    ~ChannelEstimator() override;
 
-    // Module interface implementation  
-    std::string_view get_module_id() const { return module_id_; }
+    // IModule interface implementation  
+    std::string_view get_module_id() const override { return module_id_; }
     
     task::TaskResult execute(
         const std::vector<tensor::TensorInfo>& inputs,
         std::vector<tensor::TensorInfo>& outputs,
         const task::CancellationToken& token
-    );
+    ) override;
 
     bool is_input_ready(std::size_t input_index) const;
     bool is_output_ready(std::size_t output_index) const;

@@ -29,25 +29,35 @@ namespace framework::examples {
 
 ChannelEstimationPipeline::ChannelEstimationPipeline(
     std::string pipeline_id,
+    gsl_lite::not_null<pipeline::IModuleFactory*> module_factory,
     const pipeline::PipelineSpec& spec
-) : pipeline_id_(std::move(pipeline_id)) {
+) : pipeline_id_(std::move(pipeline_id)), module_factory_(module_factory) {
     
     if (!setup(spec)) {
         throw std::runtime_error("Failed to setup channel estimation pipeline");
     }
-    
-    // Create channel estimator module with default params
-    ChannelEstParams default_params{};
-    default_params.num_rx_antennas = 4;
-    default_params.num_resource_blocks = 25;
-    default_params.pilot_spacing = 4;
-    
 }
 
 bool ChannelEstimationPipeline::setup(const pipeline::PipelineSpec& spec) {
     try {
         // Setup memory pool for large tensor allocations
         setup_memory_pool(spec);
+        
+        // Create channel estimator module via factory
+        nlohmann::json module_config;
+        module_config["num_rx_antennas"] = 4;
+        module_config["num_resource_blocks"] = 25;  
+        module_config["pilot_spacing"] = 4;
+        module_config["algorithm"] = "least_squares";
+        
+        auto module = module_factory_->create_module(
+            pipeline_id_ + "_channel_estimator",
+            "channel_estimator", 
+            module_config
+        );
+        channel_estimator_ = std::unique_ptr<ChannelEstimator>(
+            static_cast<ChannelEstimator*>(module.release())
+        );
         
         // Setup CUDA graph for optimized execution
         setup_cuda_graph();
@@ -80,13 +90,13 @@ void ChannelEstimationPipeline::setup_memory_pool(const pipeline::PipelineSpec& 
     // Total memory with overhead
     size_t total_memory = (channel_memory + pilot_memory * 2) * 2; // Double buffer
     
-    // Create memory pool (implementation depends on framework memory management)
-    total_memory_bytes_ = total_memory;
-    // Allocate device memory directly
-    cudaError_t result = cudaMalloc(&device_memory_ptr_, total_memory);
-    if (result != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate device memory");
-    }
+    // Create framework memory pool
+    memory::MemoryPoolConfig pool_config{};
+    pool_config.device_id = 0;
+    pool_config.initial_size = total_memory;
+    pool_config.max_size = total_memory * 2;
+    
+    memory_pool_ = std::make_unique<memory::MemoryPool>(pool_config);
 }
 
 void ChannelEstimationPipeline::setup_cuda_graph() {
@@ -167,19 +177,19 @@ task::TaskResult ChannelEstimationPipeline::execute_internal(
             end_time - start_time
         );
         
-        total_executions_++;
-        // Additional timing stats could be added to PipelineStats struct
+        stats_.total_executions++;
         
         if (result.is_success()) {
             // Successful execution
+            stats_.total_execution_time_us += duration.count();
         } else {
-            failed_executions_++;
+            stats_.failed_executions++;
         }
         
         return result;
         
     } catch (const std::exception& e) {
-        failed_executions_++;
+        stats_.failed_executions++;
         return task::TaskResult(
             task::TaskStatus::Failed,
             std::string("Pipeline execution failed: ") + e.what()
@@ -203,32 +213,26 @@ void ChannelEstimationPipeline::teardown() {
     channel_estimator_.reset();
     
     // Cleanup memory pool
-    if (device_memory_ptr_) {
-        cudaFree(device_memory_ptr_);
-        device_memory_ptr_ = nullptr;
-    }
+    memory_pool_.reset();
 }
 
 bool ChannelEstimationPipeline::is_ready() const {
-    return channel_estimator_ && 
-           device_memory_ptr_ && 
-           channel_estimator_->is_input_ready(0) && 
-           channel_estimator_->is_input_ready(1) &&
-           channel_estimator_->is_output_ready(0);
+bool ChannelEstimationPipeline::is_ready() const {
+    return channel_estimator_ && memory_pool_;
 }
 
-void ChannelEstimationPipeline::print_stats() const {
-    std::cout << "Total executions: " << total_executions_ << std::endl;
-    std::cout << "Failed executions: " << failed_executions_ << std::endl;
+pipeline::PipelineStats ChannelEstimationPipeline::get_stats() const {
+    return stats_;
 }
 
 // Factory implementations
-std::unique_ptr<ChannelEstimationPipeline> ChannelEstimationPipelineFactory::create_pipeline(
+std::unique_ptr<pipeline::IPipeline> ChannelEstimationPipelineFactory::create_pipeline(
     const std::string& pipeline_id,
+    gsl_lite::not_null<pipeline::IModuleFactory*> module_factory,
     const pipeline::PipelineSpec& spec
 ) {
     return std::make_unique<ChannelEstimationPipeline>(
-        pipeline_id, spec
+        pipeline_id, module_factory, spec
     );
 }
 
@@ -236,10 +240,36 @@ ChannelEstimatorModuleFactory::ChannelEstimatorModuleFactory(
     const ChannelEstParams& default_params
 ) : default_params_(default_params) {}
 
-std::unique_ptr<ChannelEstimator> ChannelEstimatorModuleFactory::create_module(
+std::unique_ptr<pipeline::IModule> ChannelEstimatorModuleFactory::create_module(
     const std::string& module_id,
-    const ChannelEstParams& params
+    const std::string& module_type,
+    const nlohmann::json& config
 ) {
+    if (module_type != "channel_estimator") {
+        return nullptr;
+    }
+    
+    ChannelEstParams params = default_params_;
+    
+    // Parse configuration
+    if (config.contains("num_rx_antennas")) {
+        params.num_rx_antennas = config["num_rx_antennas"];
+    }
+    if (config.contains("num_resource_blocks")) {
+        params.num_resource_blocks = config["num_resource_blocks"];
+    }
+    if (config.contains("pilot_spacing")) {
+        params.pilot_spacing = config["pilot_spacing"];
+    }
+    if (config.contains("algorithm")) {
+        std::string algo = config["algorithm"];
+        if (algo == "least_squares") {
+            params.algorithm = ChannelEstAlgorithm::LEAST_SQUARES;
+        } else if (algo == "mmse") {
+            params.algorithm = ChannelEstAlgorithm::MMSE;
+        }
+    }
+    
     return std::make_unique<ChannelEstimator>(module_id, params);
 }
 

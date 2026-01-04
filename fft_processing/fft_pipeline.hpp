@@ -1,15 +1,27 @@
 #pragma once
 
-#include "fft_module.hpp"
-#include <aerial/pipeline/IPipeline.hpp>
-#include <aerial/memory/MemoryPool.hpp>
-#include <aerial/task/TaskResult.hpp>
-#include <cufft.h>
-#include <vector>
 #include <memory>
 #include <string>
+#include <vector>
+#include <span>
+#include <map>
+#include <chrono>
 
-namespace fft_processing {
+#include "pipeline/ipipeline.hpp"
+#include "pipeline/imodule.hpp"
+#include "pipeline/imodule_factory.hpp"
+#include "pipeline/ipipeline_factory.hpp"
+#include "pipeline/types.hpp"
+#include "pipeline/pipeline_stats.hpp"
+#include "tensor/tensor_info.hpp"
+#include "memory/memory_pool.hpp"
+#include <cufft.h>
+#include <cuda_runtime.h>
+#include <cuComplex.h>
+
+#include "fft_module.hpp"
+
+namespace framework::examples {
 
 /// FFT operation type
 enum class FFTType {
@@ -86,11 +98,62 @@ struct FFTPipelineStats {
 };
 
 /// High-performance FFT pipeline with GPU optimization
-class FFTPipeline final : public aerial::pipeline::IPipeline {
+class FFTPipeline final : public pipeline::IPipeline {
+public:
+    /**
+     * Constructor
+     * @param pipeline_id Unique identifier for this pipeline
+     * @param module_factory Factory for creating modules
+     * @param spec Pipeline specification
+     */
+    FFTPipeline(
+        std::string pipeline_id,
+        std::shared_ptr<pipeline::IModuleFactory> module_factory,
+        const pipeline::PipelineSpec& spec
+    );
+    
+    ~FFTPipeline() override;
+
+    // Non-copyable, non-movable
+    FFTPipeline(const FFTPipeline&) = delete;
+    FFTPipeline& operator=(const FFTPipeline&) = delete;
+    FFTPipeline(FFTPipeline&&) = delete;
+    FFTPipeline& operator=(FFTPipeline&&) = delete;
+
+    // IPipeline interface
+    [[nodiscard]] std::string_view get_pipeline_id() const override { return pipeline_id_; }
+    [[nodiscard]] std::size_t get_num_external_inputs() const override { return 1; }
+    [[nodiscard]] std::size_t get_num_external_outputs() const override { return 1; }
+
+    void setup() override;
+    void warmup(cudaStream_t stream) override;
+    void configure_io(
+        const pipeline::DynamicParams& params,
+        std::span<const pipeline::PortInfo> external_inputs,
+        std::span<pipeline::PortInfo> external_outputs,
+        cudaStream_t stream
+    ) override;
+    void execute_stream(cudaStream_t stream) override;
+    void execute_graph(cudaStream_t stream) override;
+    
+    /// Cleanup pipeline resources
+    void teardown();
+
+    /// Check if pipeline is ready for execution
+    [[nodiscard]] bool is_ready() const;
+
+    /// Get performance statistics
+    [[nodiscard]] pipeline::PipelineStats get_stats() const;
+
+    // FFT-specific interface
+    FFTPipelineStats get_fft_stats() const { return stats_; }
+    
 private:
+    std::string pipeline_id_;
+    std::shared_ptr<pipeline::IModuleFactory> module_factory_;
     FFTPipelineConfig config_;
-    std::unique_ptr<FFTProcessor> fft_processor_;
-    std::unique_ptr<aerial::memory::MemoryPool> memory_pool_;
+    std::unique_ptr<FFTModule> fft_module_;
+    std::unique_ptr<memory::MemoryPool> memory_pool_;
     
     // cuFFT resources
     std::map<size_t, cufftHandle> fft_plans_;
@@ -114,68 +177,11 @@ private:
     
     // State management
     bool is_initialized_{false};
-    std::string pipeline_id_;
+    bool is_setup_{false};
     
-public:
-    explicit FFTPipeline(const FFTPipelineConfig& config);
-    ~FFTPipeline();
-    
-    // IPipeline interface
-    std::string_view get_pipeline_id() const override;
-    std::size_t get_num_external_inputs() const override { return 1; }
-    std::size_t get_num_external_outputs() const override { return 1; }
-    
-    aerial::task::TaskResult execute_pipeline(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
-    
-    aerial::task::TaskResult execute_pipeline_graph(
-        std::span<const aerial::tensor::TensorInfo> inputs,
-        std::span<aerial::tensor::TensorInfo> outputs,
-        const aerial::task::CancellationToken& token) override;
-    
-    bool setup(const aerial::pipeline::PipelineSpec& spec) override;
-    void teardown() override;
-    bool is_ready() const override { return is_initialized_; }
-    
-    aerial::pipeline::PipelineStats get_stats() const override;
-    
-    // FFT-specific interface
-    FFTPipelineStats get_fft_stats() const { return stats_; }
-    
-    /// Execute forward FFT
-    aerial::task::TaskResult execute_forward_fft(
-        const std::vector<std::complex<float>>& input_data,
-        std::vector<std::complex<float>>& output_data,
-        size_t fft_size,
-        size_t batch_size = 1,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Execute inverse FFT
-    aerial::task::TaskResult execute_inverse_fft(
-        const std::vector<std::complex<float>>& input_data,
-        std::vector<std::complex<float>>& output_data,
-        size_t fft_size,
-        size_t batch_size = 1,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Execute batch of FFTs with different sizes
-    aerial::task::TaskResult execute_mixed_batch(
-        const std::vector<std::vector<std::complex<float>>>& input_batches,
-        std::vector<std::vector<std::complex<float>>>& output_batches,
-        const std::vector<size_t>& fft_sizes,
-        FFTType operation_type,
-        const aerial::task::CancellationToken& token = {});
-    
-    /// Execute OFDM-specific operations (FFT + windowing + overlap-add)
-    aerial::task::TaskResult execute_ofdm_processing(
-        const std::vector<std::complex<float>>& input_symbols,
-        std::vector<std::complex<float>>& output_samples,
-        size_t fft_size,
-        size_t cp_length,
-        const std::vector<float>& window_function = {},
-        const aerial::task::CancellationToken& token = {});
+    // Input/output buffers
+    std::vector<pipeline::PortInfo> external_inputs_;
+    std::vector<pipeline::PortInfo> external_outputs_;
     
     /// Update configuration dynamically
     bool update_config(const FFTPipelineConfig& new_config);
@@ -200,34 +206,51 @@ private:
     bool ensure_buffer_capacity(size_t required_samples);
     bool create_cuda_graph(size_t fft_size, size_t batch_size);
     void update_performance_stats(uint64_t execution_time_us, size_t samples_processed, FFTType operation);
-    aerial::task::TaskResult validate_inputs(std::span<const aerial::tensor::TensorInfo> inputs) const;
-    aerial::task::TaskResult validate_outputs(std::span<aerial::tensor::TensorInfo> outputs) const;
+    void validate_inputs(std::span<const pipeline::PortInfo> inputs) const;
+    void validate_outputs(std::span<pipeline::PortInfo> outputs) const;
     
     // cuFFT helpers
     cufftResult execute_cufft_plan(cufftHandle plan, void* input, void* output, int direction, cudaStream_t stream);
     size_t calculate_workspace_size(size_t fft_size, size_t batch_size);
 };
 
-/// Factory for creating FFT pipelines
-class FFTPipelineFactory {
+/// Factory for creating FFT modules
+class FFTModuleFactory final : public pipeline::IModuleFactory {
 public:
-    static std::unique_ptr<FFTPipeline> create_pipeline(
-        const FFTPipelineConfig& config = {});
-    
-    static std::unique_ptr<FFTPipeline> create_from_spec(
-        const aerial::pipeline::PipelineSpec& spec);
-    
+    FFTModuleFactory() = default;
+    ~FFTModuleFactory() override = default;
+
+    std::unique_ptr<pipeline::IModule> create_module(
+        const std::string& module_type,
+        const std::string& instance_id,
+        const pipeline::ModuleSpec& spec
+    ) const override;
+
+    std::vector<std::string> get_supported_module_types() const override {
+        return {"FFTModule"};
+    }
+};
+
+/// Factory for creating FFT pipelines
+class FFTPipelineFactory final : public pipeline::IPipelineFactory {
+public:
+    FFTPipelineFactory() = default;
+    ~FFTPipelineFactory() override = default;
+
+    std::unique_ptr<pipeline::IPipeline> create_pipeline(
+        const std::string& pipeline_id,
+        std::shared_ptr<pipeline::IModuleFactory> module_factory,
+        const pipeline::PipelineSpec& spec
+    ) const override;
+
+    std::vector<std::string> get_supported_pipeline_types() const override {
+        return {"FFTPipeline"};
+    }
+
     static FFTPipelineConfig get_default_config(const std::vector<size_t>& fft_sizes = {1024});
     static FFTPipelineConfig get_high_performance_config(const std::vector<size_t>& fft_sizes = {1024, 2048, 4096});
     static FFTPipelineConfig get_low_latency_config(const std::vector<size_t>& fft_sizes = {256, 512});
     static FFTPipelineConfig get_ofdm_config(size_t subcarrier_count = 1024);
-    
-    /// Get optimal FFT configuration for specific use case
-    static FFTPipelineConfig get_optimized_config(
-        const std::vector<size_t>& target_sizes,
-        size_t expected_batch_size,
-        FFTPrecision precision = FFTPrecision::Single,
-        bool prioritize_latency = false);
 };
 
-} // namespace fft_processing
+} // namespace framework::examples
