@@ -87,6 +87,11 @@ public:
     [[nodiscard]] std::vector<std::string> get_input_port_names() const override;
     [[nodiscard]] std::vector<std::string> get_output_port_names() const override;
     
+    framework::pipeline::ModuleMemoryRequirements get_requirements() const override;
+    
+    framework::pipeline::MemoryCharacteristics
+    get_output_memory_characteristics(std::string_view port_name) const override;
+    
     void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
     

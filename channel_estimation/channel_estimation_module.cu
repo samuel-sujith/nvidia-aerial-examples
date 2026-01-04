@@ -117,16 +117,16 @@ void ChannelEstimator::setup_port_info() {
     );
 }
 
-void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
     allocate_gpu_memory();
 }
 
-void ChannelEstimator::warmup(cudaStream_t stream) {
+void ChannelEstimator::warmup(cudaStream_t /*stream*/) {
     // No specific warmup needed for channel estimation
 }
 
 void ChannelEstimator::configure_io(
-    const framework::pipeline::DynamicParams& params,
+    const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
     // Update descriptor with current tensor pointers
@@ -255,6 +255,73 @@ cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stre
     interpolate_channel_estimates_kernel<<<gridSizeInterp, blockSize, 0, stream>>>(d_descriptor_);
     
     return cudaGetLastError();
+}
+
+framework::pipeline::ModuleMemoryRequirements ChannelEstimator::get_requirements() const {
+    framework::pipeline::ModuleMemoryRequirements reqs{};
+    
+    // Calculate memory requirements based on parameters
+    size_t total_bytes = 0;
+    
+    // Memory for pilot symbols
+    total_bytes += params_.num_rx_antennas * params_.num_ofdm_symbols * 
+                   params_.num_resource_blocks * sizeof(cuComplex);
+    
+    // Memory for channel estimates
+    total_bytes += params_.num_rx_antennas * params_.num_ofdm_symbols * 
+                   params_.num_resource_blocks * 12 * sizeof(cuComplex);
+    
+    reqs.device_tensor_bytes = total_bytes;
+    reqs.alignment = 256; // CUDA memory alignment
+    
+    return reqs;
+}
+
+framework::pipeline::MemoryCharacteristics
+ChannelEstimator::get_output_memory_characteristics(std::string_view port_name) const {
+    framework::pipeline::MemoryCharacteristics chars{};
+    
+    if (port_name == "channel_estimates") {
+        chars.provides_fixed_address_for_zero_copy = true;
+        chars.requires_fixed_address_for_zero_copy = false;
+    }
+    
+    return chars;
+}
+
+std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
+    std::vector<framework::pipeline::PortInfo> outputs;
+    
+    // Create tensor info for channel estimates
+    framework::tensor::TensorInfo tensor_info(
+        framework::tensor::TensorInfo::DataType::TensorC64F,
+        {static_cast<int64_t>(params_.num_rx_antennas),
+         static_cast<int64_t>(params_.num_ofdm_symbols),
+         static_cast<int64_t>(params_.num_resource_blocks * 12)}
+    );
+    
+    // Create device tensor
+    framework::pipeline::DeviceTensor output_tensor{
+        .device_ptr = d_channel_estimates_,
+        .tensor_info = tensor_info
+    };
+    
+    // Create port info
+    framework::pipeline::PortInfo port_info{
+        .name = "channel_estimates",
+        .tensors = {output_tensor}
+    };
+    
+    outputs.push_back(port_info);
+    return outputs;
+}
+
+void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
+    for (const auto& port : inputs) {
+        if (port.name == "pilot_symbols" && !port.tensors.empty()) {
+            d_pilot_symbols_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
+        }
+    }
 }
 
 } // namespace channel_estimation

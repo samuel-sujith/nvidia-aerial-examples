@@ -60,7 +60,8 @@ public:
         cudaStream_t stream
     ) override;
     
-    void execute(cudaStream_t stream) override;
+    void execute_stream(cudaStream_t stream) override;
+    void execute_graph(cudaStream_t stream) override;
 
 private:
     std::string pipeline_id_;

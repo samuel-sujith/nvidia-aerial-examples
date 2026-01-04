@@ -29,7 +29,7 @@ void ChannelEstimationPipeline::setup() {
     framework::pipeline::ModuleMemorySlice memory_slice;
     // In a real implementation, this would provide the proper memory slice
     
-    channel_estimator_->setup(memory_slice);
+    channel_estimator_->setup_memory(memory_slice);
     
     // Setup tensor connections
     setup_tensor_connections();
@@ -55,42 +55,36 @@ void ChannelEstimationPipeline::configure_io(
         throw std::runtime_error("Channel estimation pipeline requires exactly 1 external output");
     }
     
-    // Get tensor info from external ports
-    std::vector<framework::tensor::TensorInfo> module_inputs;
-    std::vector<framework::tensor::TensorInfo> module_outputs;
+    // Set module inputs using PortInfo directly
+    channel_estimator_->set_inputs(external_inputs);
     
-    // Map external inputs to module inputs
-    for (const auto& port : external_inputs) {
-        module_inputs.push_back(port.tensor_info);
-    }
+    // Call module's configure_io
+    channel_estimator_->configure_io(params, stream);
     
-    // Map external outputs to module outputs  
-    for (auto& port : external_outputs) {
-        module_outputs.push_back(port.tensor_info);
-    }
-    
-    // Configure the channel estimator module
-    channel_estimator_->configure_io(params, module_inputs, module_outputs, stream);
-    
-    // Update external output port information
-    auto output_tensor_info = channel_estimator_->get_output_tensor_info();
-    for (std::size_t i = 0; i < external_outputs.size() && i < output_tensor_info.size(); ++i) {
-        external_outputs[i].tensor_info = output_tensor_info[i];
-        // In a real implementation, set external_outputs[i].device_ptr
+    // Get module outputs and update external outputs
+    auto module_output_ports = channel_estimator_->get_outputs();
+    for (size_t i = 0; i < external_outputs.size() && i < module_output_ports.size(); ++i) {
+        external_outputs[i] = module_output_ports[i];
     }
 }
 
-void ChannelEstimationPipeline::execute(cudaStream_t stream) {
+void ChannelEstimationPipeline::execute_stream(cudaStream_t stream) {
+    if (channel_estimator_) {
+        channel_estimator_->execute(stream);
+    }
+}
+
+void ChannelEstimationPipeline::execute_graph(cudaStream_t stream) {
+    // For this example, graph mode is the same as stream mode
+    // In a real implementation, this would use CUDA graphs
     if (channel_estimator_) {
         channel_estimator_->execute(stream);
     }
 }
 
 void ChannelEstimationPipeline::allocate_pipeline_memory() {
-    // Calculate memory requirements
-    auto memory_req = channel_estimator_->get_memory_requirements();
-    
-    // For simplicity, allocate a fixed amount of memory
+    // For this example, we'll use a simple fixed memory allocation
+    // In a real implementation, you would query module requirements
     memory_size_ = 64 * 1024 * 1024; // 64MB
     
     cudaError_t err = cudaMalloc(&device_memory_, memory_size_);
