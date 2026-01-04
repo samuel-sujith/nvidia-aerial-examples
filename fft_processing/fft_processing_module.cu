@@ -179,15 +179,26 @@ void FFTProcessor::set_inputs(std::span<const framework::pipeline::PortInfo> inp
     }
 }
 
+void FFTProcessor::set_outputs(std::span<framework::pipeline::PortInfo> outputs) {
+    if (outputs.size() != 1) {
+        throw std::runtime_error("FFT processor requires exactly 1 output port");
+    }
+    
+    // Extract device pointers from output ports
+    for (const auto& port : outputs) {
+        if (port.name == "output_signal" && !port.tensors.empty()) {
+            current_output_ = static_cast<cuComplex*>(const_cast<void*>(port.tensors[0].device_ptr));
+        }
+    }
+}
+
 std::vector<framework::pipeline::PortInfo> FFTProcessor::get_outputs() const {
     // Return a copy of output_ports_ with updated device pointers
     std::vector<framework::pipeline::PortInfo> outputs = output_ports_;
     
     if (!outputs.empty() && !outputs[0].tensors.empty()) {
-        // Use d_output_data_ as the output pointer since we can't get external pointer here
-        outputs[0].tensors[0].device_ptr = d_output_data_;
-        // Update current_output_ for execute method
-        const_cast<FFTProcessor*>(this)->current_output_ = d_output_data_;
+        // Use the current output pointer (either external or internal)
+        outputs[0].tensors[0].device_ptr = current_output_ ? current_output_ : d_output_data_;
     }
     
     return outputs;

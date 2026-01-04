@@ -94,6 +94,7 @@ public:
     
     // IStreamExecutor interface
     void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
+    void set_outputs(std::span<framework::pipeline::PortInfo> outputs);
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
     void execute(cudaStream_t stream) override;
 

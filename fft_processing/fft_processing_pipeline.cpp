@@ -55,8 +55,9 @@ void FFTProcessingPipeline::configure_io(
         throw std::runtime_error("FFT processing pipeline requires exactly 1 external output");
     }
     
-    // Set module inputs using PortInfo directly
+    // Set module inputs and outputs using PortInfo directly
     fft_processor_->set_inputs(external_inputs);
+    fft_processor_->set_outputs(external_outputs);
     
     // Call module's configure_io
     fft_processor_->configure_io(params, stream);
