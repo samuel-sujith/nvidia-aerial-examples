@@ -145,6 +145,10 @@ bool ModulationPipeline::demodulate(
         // Resize output buffers
         size_t expected_bits = mapper_->calculate_total_bits();
         output_bits.resize(expected_bits);
+        
+        // Initialize output buffer to detect memory corruption
+        std::fill(output_bits.begin(), output_bits.end(), 255);
+        
         if (soft_bits && config_.modulation_params.soft_output) {
             soft_bits->resize(expected_bits);
         }

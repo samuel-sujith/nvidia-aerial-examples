@@ -91,21 +91,24 @@ __global__ void qpsk_demodulation_kernel(
         
         int bit_idx = idx * 2;
         
-        if (generate_soft) {
-            // Generate Log-Likelihood Ratios (LLRs)
-            float sigma_sq = noise_variance;
-            float norm_factor = sqrtf(2.0f);
+        // Ensure we don't write out of bounds
+        if (bit_idx + 1 < total_symbols * 2) {
+            if (generate_soft && soft_bits) {
+                // Generate Log-Likelihood Ratios (LLRs)
+                float sigma_sq = noise_variance;
+                float norm_factor = sqrtf(2.0f);
+                
+                // LLR for bit 0 (real part)
+                soft_bits[bit_idx] = 4.0f * real_part * norm_factor / sigma_sq;
+                
+                // LLR for bit 1 (imaginary part)  
+                soft_bits[bit_idx + 1] = 4.0f * imag_part * norm_factor / sigma_sq;
+            }
             
-            // LLR for bit 0 (real part)
-            soft_bits[bit_idx] = 4.0f * real_part * norm_factor / sigma_sq;
-            
-            // LLR for bit 1 (imaginary part)  
-            soft_bits[bit_idx + 1] = 4.0f * imag_part * norm_factor / sigma_sq;
+            // Hard decision
+            output_bits[bit_idx] = (real_part > 0.0f) ? 0 : 1;
+            output_bits[bit_idx + 1] = (imag_part > 0.0f) ? 0 : 1;
         }
-        
-        // Hard decision
-        output_bits[bit_idx] = (real_part > 0.0f) ? 0 : 1;
-        output_bits[bit_idx + 1] = (imag_part > 0.0f) ? 0 : 1;
     }
 }
 
@@ -402,6 +405,12 @@ void ModulationMapper::allocate_gpu_memory() {
         err = cudaMalloc(&d_output_bits_, bits_size);
         if (err != cudaSuccess) {
             throw std::runtime_error("Failed to allocate GPU memory for output bits");
+        }
+        
+        // Initialize output bits memory to zero
+        err = cudaMemset(d_output_bits_, 0, bits_size);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("Failed to initialize GPU memory for output bits");
         }
         
         // Allocate soft bits if needed
