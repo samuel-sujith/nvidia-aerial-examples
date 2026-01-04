@@ -153,6 +153,13 @@ bool ModulationPipeline::demodulate(
             soft_bits->resize(expected_bits);
         }
         
+        // Debug: print first 4 input symbols before copying to GPU
+        std::cout << "First 4 input symbols to demodulation: ";
+        for (size_t i = 0; i < std::min<size_t>(4, input_symbols.size()); ++i) {
+            std::cout << "(" << input_symbols[i].real() << ", " << input_symbols[i].imag() << ") ";
+        }
+        std::cout << std::endl;
+
         // Copy data to GPU
         size_t symbols_bytes = input_symbols.size() * sizeof(std::complex<float>);
         cudaError_t err = cudaMemcpyAsync(
