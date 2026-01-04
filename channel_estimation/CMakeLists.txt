@@ -43,6 +43,9 @@ target_include_directories(channel_estimator PUBLIC
 target_link_libraries(channel_estimator 
     CUDA::cudart
     CUDA::cuda_driver
+    framework::pipeline
+    framework::tensor
+    framework::task
 )
 
 # Set properties for CUDA compilation
