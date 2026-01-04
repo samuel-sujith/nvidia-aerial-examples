@@ -24,7 +24,7 @@ void FFTProcessingPipeline::setup() {
     
     // Setup memory slice for the module
     memory_slice_.device_tensor_bytes = memory_size_;
-    memory_slice_.device_tensor_memory = device_memory_;
+    memory_slice_.device_tensor_ptr = device_memory_;
     
     // In a real implementation, this would provide the proper memory slice
     
@@ -94,7 +94,7 @@ void FFTProcessingPipeline::allocate_pipeline_memory() {
     
     memory_slice_ = framework::pipeline::ModuleMemorySlice{
         .device_tensor_bytes = MEMORY_SIZE,
-        .device_tensor_memory = device_memory_
+        .device_tensor_ptr = device_memory_
     };
 }
 
