@@ -15,6 +15,7 @@
 
 #include "pipeline/imodule.hpp"
 #include "pipeline/istream_executor.hpp"
+#include "pipeline/iallocation_info_provider.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "tensor/data_types.hpp"
@@ -52,6 +53,7 @@ struct ChannelEstDescriptor {
 
 /// Channel estimator module implementing the framework interface
 class ChannelEstimator final : public framework::pipeline::IModule, 
+                               public framework::pipeline::IAllocationInfoProvider,
                                public framework::pipeline::IStreamExecutor {
 public:
     /**
