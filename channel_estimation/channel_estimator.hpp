@@ -15,6 +15,7 @@
 #include <task/task.hpp>
 #include "tensor/tensor_info.hpp"
 #include "pipeline/imodule.hpp"
+#include "pipeline/types.hpp"
 
 namespace framework::examples {
 
@@ -70,13 +71,27 @@ public:
     ~ChannelEstimator() override;
 
     // IModule interface implementation  
-    std::string_view get_module_id() const override { return module_id_; }
+    [[nodiscard]] std::string_view get_type_id() const override { return "channel_estimator"; }
+    [[nodiscard]] std::string_view get_instance_id() const override { return module_id_; }
     
-    task::TaskResult execute(
-        const std::vector<tensor::TensorInfo>& inputs,
-        std::vector<tensor::TensorInfo>& outputs,
-        const task::CancellationToken& token
-    ) override;
+    void setup_memory(const pipeline::ModuleMemorySlice& memory_slice) override;
+    
+    [[nodiscard]] std::vector<tensor::TensorInfo>
+    get_input_tensor_info(std::string_view port_name) const override;
+    
+    [[nodiscard]] std::vector<tensor::TensorInfo>
+    get_output_tensor_info(std::string_view port_name) const override;
+    
+    [[nodiscard]] std::vector<std::string> get_input_port_names() const override;
+    [[nodiscard]] std::vector<std::string> get_output_port_names() const override;
+    
+    void set_inputs(std::span<const pipeline::PortInfo> inputs) override;
+    [[nodiscard]] std::vector<pipeline::PortInfo> get_outputs() const override;
+    
+    void configure_io(const pipeline::DynamicParams& params, cudaStream_t stream) override;
+    
+    pipeline::IGraphNodeProvider* as_graph_node_provider() override;
+    pipeline::IStreamExecutor* as_stream_executor() override;
 
     bool is_input_ready(std::size_t input_index) const;
     bool is_output_ready(std::size_t output_index) const;
