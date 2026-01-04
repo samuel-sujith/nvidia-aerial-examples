@@ -211,19 +211,23 @@ cd /workspace
 mkdir build && cd build
 cmake ..
 make -j$(nproc)
-```
+
 ./mimo_detection/mimo_example
+```
 
 # Run with custom parameters
+```bash
 ./channel_estimation/channel_estimation_example --num-rbs 100 --algorithm mmse
 ./modulation_mapping/modulation_mapping_example --scheme 256QAM --subcarriers 1200
 ./neural_beamforming/neural_beamforming_example --algorithm NEURAL --antennas 128
+```
 
 # Performance benchmarks
+```bash
 ./scripts/benchmark.sh --all-examples --iterations 1000
 ```
 
-## 🎯 Example Walkthroughs
+# 🎯 Example Walkthroughs
 
 ### Channel Estimation Pipeline
 A comprehensive example showing 5G NR channel estimation with multiple algorithms:
