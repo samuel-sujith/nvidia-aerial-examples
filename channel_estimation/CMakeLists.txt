@@ -46,6 +46,7 @@ target_link_libraries(channel_estimator
     framework::pipeline
     framework::tensor
     framework::task
+    framework::rt_log
     NamedType
     quill::quill
 )
@@ -65,6 +66,7 @@ add_executable(channel_estimation_example
 target_link_libraries(channel_estimation_example
     channel_estimator
     CUDA::cudart
+    framework::rt_log
     quill::quill
 )
 
