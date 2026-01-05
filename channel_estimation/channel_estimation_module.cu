@@ -192,16 +192,14 @@ std::vector<std::string> ChannelEstimator::get_output_port_names() const {
 }
 
 void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
-    if (inputs.size() != 2) {
-        throw std::runtime_error("Channel estimator requires exactly 2 input ports");
-    }
-    
-    // Extract device pointers from input ports
+    // Accept both input and output ports in the vector
     for (const auto& port : inputs) {
         if (port.name == "rx_pilots" && !port.tensors.empty()) {
             current_rx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
         } else if (port.name == "tx_pilots" && !port.tensors.empty()) {
             current_tx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
+        } else if (port.name == "channel_estimates" && !port.tensors.empty()) {
+            current_channel_estimates_ = static_cast<cuComplex*>(port.tensors[0].device_ptr);
         }
     }
 }
