@@ -185,6 +185,51 @@ void ChannelEstimator::execute(cudaStream_t stream) {
         std::cerr << "[ERROR] cudaMemset failed: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("cudaMemset failed");
     }
+
+
+    // Defensive checks and debug prints for all device memory
+    std::cout << "[DEBUG] ChannelEstimator::execute: d_descriptor_=" << (const void*)d_descriptor_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: d_pilot_symbols_=" << (const void*)d_pilot_symbols_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: d_pilot_estimates_=" << (const void*)d_pilot_estimates_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: d_channel_estimates_=" << (const void*)d_channel_estimates_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: h_descriptor_.pilot_estimates=" << (const void*)h_descriptor_.pilot_estimates << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: current_rx_pilots_=" << (const void*)current_rx_pilots_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: current_tx_pilots_=" << (const void*)current_tx_pilots_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::execute: current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
+
+    if (!d_descriptor_) {
+        std::cerr << "[ERROR] d_descriptor_ is nullptr!" << std::endl;
+        throw std::runtime_error("d_descriptor_ is nullptr");
+    }
+    if (!d_pilot_symbols_) {
+        std::cerr << "[ERROR] d_pilot_symbols_ is nullptr!" << std::endl;
+        throw std::runtime_error("d_pilot_symbols_ is nullptr");
+    }
+    if (!d_pilot_estimates_) {
+        std::cerr << "[ERROR] d_pilot_estimates_ is nullptr!" << std::endl;
+        throw std::runtime_error("d_pilot_estimates_ is nullptr");
+    }
+    if (!d_channel_estimates_) {
+        std::cerr << "[ERROR] d_channel_estimates_ is nullptr!" << std::endl;
+        throw std::runtime_error("d_channel_estimates_ is nullptr");
+    }
+    if (!h_descriptor_.pilot_estimates) {
+        std::cerr << "[ERROR] h_descriptor_.pilot_estimates is nullptr!" << std::endl;
+        throw std::runtime_error("h_descriptor_.pilot_estimates is nullptr");
+    }
+    if (!current_rx_pilots_) {
+        std::cerr << "[ERROR] current_rx_pilots_ is nullptr!" << std::endl;
+        throw std::runtime_error("current_rx_pilots_ is nullptr");
+    }
+    if (!current_tx_pilots_) {
+        std::cerr << "[ERROR] current_tx_pilots_ is nullptr!" << std::endl;
+        throw std::runtime_error("current_tx_pilots_ is nullptr");
+    }
+    if (!current_channel_estimates_) {
+        std::cerr << "[ERROR] current_channel_estimates_ is nullptr!" << std::endl;
+        throw std::runtime_error("current_channel_estimates_ is nullptr");
+    }
+
     err = launch_channel_estimation_kernel(stream);
     if (err != cudaSuccess) {
         std::cerr << "[ERROR] Channel estimation kernel launch failed: " << cudaGetErrorString(err) << std::endl;
@@ -201,19 +246,35 @@ void ChannelEstimator::allocate_gpu_memory() {
     // Allocate GPU memory for descriptor
     cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(ChannelEstDescriptor));
     if (err != cudaSuccess) {
+        std::cerr << "[ERROR] Failed to allocate GPU memory for descriptor" << std::endl;
         throw std::runtime_error("Failed to allocate GPU memory for descriptor");
     }
-    
+
     // Allocate memory for pilot symbols and channel estimates
     size_t pilot_size = params_.num_resource_blocks * 12 / params_.pilot_spacing * sizeof(cuComplex);
     size_t estimates_size = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex);
-    
+
     err = cudaMalloc(&d_pilot_symbols_, pilot_size);
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate GPU memory for pilot symbols");
+    if (err != cudaSuccess) {
+        std::cerr << "[ERROR] Failed to allocate GPU memory for pilot symbols" << std::endl;
+        throw std::runtime_error("Failed to allocate GPU memory for pilot symbols");
+    }
     err = cudaMalloc(&d_pilot_estimates_, pilot_size); // NEW
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate GPU memory for pilot estimates");
+    if (err != cudaSuccess) {
+        std::cerr << "[ERROR] Failed to allocate GPU memory for pilot estimates" << std::endl;
+        throw std::runtime_error("Failed to allocate GPU memory for pilot estimates");
+    }
     err = cudaMalloc(&d_channel_estimates_, estimates_size);
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate GPU memory for channel estimates");
+    if (err != cudaSuccess) {
+        std::cerr << "[ERROR] Failed to allocate GPU memory for channel estimates" << std::endl;
+        throw std::runtime_error("Failed to allocate GPU memory for channel estimates");
+    }
+
+    // Debug prints for all device memory after allocation
+    std::cout << "[DEBUG] allocate_gpu_memory: d_descriptor_=" << (const void*)d_descriptor_ << std::endl;
+    std::cout << "[DEBUG] allocate_gpu_memory: d_pilot_symbols_=" << (const void*)d_pilot_symbols_ << std::endl;
+    std::cout << "[DEBUG] allocate_gpu_memory: d_pilot_estimates_=" << (const void*)d_pilot_estimates_ << std::endl;
+    std::cout << "[DEBUG] allocate_gpu_memory: d_channel_estimates_=" << (const void*)d_channel_estimates_ << std::endl;
 }
 
 void ChannelEstimator::deallocate_gpu_memory() {
