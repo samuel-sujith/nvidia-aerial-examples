@@ -13,49 +13,52 @@ namespace channel_estimation {
 /// CUDA kernel for least squares channel estimation
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    // Force device-side printf for every thread before any memory access
-    //printf("[LS KERNEL] tid=%d, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n", tid, desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
-    //if (tid >= desc->num_pilots) return;
     if (tid >= desc->num_pilots) return;
-    if (tid == 0) {
-        printf("[LS KERNEL] tid=0, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n",
-               desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
-        cuComplex rx0 = desc->rx_pilots[0];
-        cuComplex tx0 = desc->tx_pilots[0];
-        printf("[LS KERNEL] rx_pilots[0]=(%f,%f), tx_pilots[0]=(%f,%f)\n",
-               cuCrealf(rx0), cuCimagf(rx0), cuCrealf(tx0), cuCimagf(tx0));
-    }
-    if (tid < 10) {
-        printf("[LS KERNEL] tid=%d, num_pilots=%d\n", tid, desc->num_pilots);
-    }
+    
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
+    
+    // Safe division: check for zero denominator
+    float tx_real = cuCrealf(tx_pilot);
+    float tx_imag = cuCimagf(tx_pilot);
+    if (tx_real == 0.0f && tx_imag == 0.0f) {
+        desc->pilot_estimates[tid] = make_cuComplex(0.0f, 0.0f);  // Or handle as needed
+        return;
+    }
+    
     cuComplex channel_est = cuCdivf(rx_pilot, tx_pilot);
     channel_est = make_cuComplex(
         cuCrealf(channel_est) * desc->params->beta_scaling,
         cuCimagf(channel_est) * desc->params->beta_scaling
     );
-    desc->pilot_estimates[tid] = channel_est; // Write to pilot_estimates
+    desc->pilot_estimates[tid] = channel_est;
 }
+
 
 /// CUDA kernel for linear interpolation between pilots
 __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid < 10) {
-        printf("[INTERP KERNEL] tid=%d, num_data_subcarriers=%d, pilot_before=%d, pilot_after=%d, pilot_estimates=%p, channel_estimates=%p\n", tid, desc->num_data_subcarriers, (tid / desc->params->pilot_spacing) * desc->params->pilot_spacing, (tid / desc->params->pilot_spacing) * desc->params->pilot_spacing + desc->params->pilot_spacing, desc->pilot_estimates, desc->channel_estimates);
-    }
     if (tid >= desc->num_data_subcarriers) return;
+    
     int pilot_spacing = desc->params->pilot_spacing;
-    int pilot_before = (tid / pilot_spacing) * pilot_spacing;
+    int pilot_idx = tid % (desc->num_pilots * pilot_spacing);  // Local pos within repeated pattern
+    int pilot_before = (pilot_idx / pilot_spacing) * pilot_spacing;
     int pilot_after = pilot_before + pilot_spacing;
-    if (pilot_before < 0) pilot_before = 0;
-    if (pilot_before >= desc->num_pilots) pilot_before = desc->num_pilots - 1;
-    if (pilot_after < 0) pilot_after = 0;
-    if (pilot_after >= desc->num_pilots) pilot_after = desc->num_pilots - 1;
+    
+    // Clamp indices safely
+    pilot_before = min(pilot_before, desc->num_pilots - 1);
+    pilot_after = min(pilot_after, desc->num_pilots - 1);
+    
+    if (pilot_before >= desc->num_pilots || pilot_after >= desc->num_pilots || 
+        pilot_before < 0 || pilot_after < 0) {
+        desc->channel_estimates[tid] = make_cuComplex(0.0f, 0.0f);
+        return;
+    }
+    
     if (pilot_before == pilot_after) {
-        desc->channel_estimates[tid] = desc->pilot_estimates[pilot_before]; // Read from pilot_estimates
+        desc->channel_estimates[tid] = desc->pilot_estimates[pilot_before];
     } else {
-        float alpha = (float)(tid - pilot_before) / pilot_spacing;
+        float alpha = (float)(pilot_idx - pilot_before) / (float)pilot_spacing;
         cuComplex h_before = desc->pilot_estimates[pilot_before];
         cuComplex h_after = desc->pilot_estimates[pilot_after];
         cuComplex interpolated = make_cuComplex(
@@ -65,6 +68,7 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
         desc->channel_estimates[tid] = interpolated;
     }
 }
+
 
 ChannelEstimator::ChannelEstimator(
     const std::string& module_id,
@@ -193,12 +197,15 @@ std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const
 }
 
 void ChannelEstimator::execute(cudaStream_t stream) {
-    // Zero-initialize the output buffer to avoid uninitialized reads
-    cudaError_t err = cudaMemset(current_channel_estimates_, 0, params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex));
+    // Zero-initialize output
+    cudaError_t err = cudaMemsetAsync(current_channel_estimates_, 0, 
+        params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex), stream);
     if (err != cudaSuccess) {
-        std::cerr << "[ERROR] cudaMemset failed: " << cudaGetErrorString(err) << std::endl;
-        throw std::runtime_error("cudaMemset failed");
+        throw std::runtime_error(std::string("cudaMemsetAsync failed: ") + cudaGetErrorString(err));
     }
+    
+    // CRITICAL FIX: Configure descriptor BEFORE kernel launch
+    configure_io({}, stream);
 
 
     // Defensive checks and debug prints for all device memory
