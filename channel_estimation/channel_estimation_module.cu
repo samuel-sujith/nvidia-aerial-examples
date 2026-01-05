@@ -13,6 +13,9 @@ namespace channel_estimation {
 /// CUDA kernel for least squares channel estimation
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < 10) {
+        printf("[LS KERNEL] tid=%d, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n", tid, desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
+    }
     if (tid >= desc->num_pilots) return;
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
@@ -27,6 +30,9 @@ __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
 /// CUDA kernel for linear interpolation between pilots
 __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < 10) {
+        printf("[INTERP KERNEL] tid=%d, num_data_subcarriers=%d, pilot_before=%d, pilot_after=%d, pilot_estimates=%p, channel_estimates=%p\n", tid, desc->num_data_subcarriers, (tid / desc->params->pilot_spacing) * desc->params->pilot_spacing, (tid / desc->params->pilot_spacing) * desc->params->pilot_spacing + desc->params->pilot_spacing, desc->pilot_estimates, desc->channel_estimates);
+    }
     if (tid >= desc->num_data_subcarriers) return;
     int pilot_spacing = desc->params->pilot_spacing;
     int pilot_before = (tid / pilot_spacing) * pilot_spacing;
@@ -35,9 +41,6 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
     if (pilot_before >= desc->num_pilots) pilot_before = desc->num_pilots - 1;
     if (pilot_after < 0) pilot_after = 0;
     if (pilot_after >= desc->num_pilots) pilot_after = desc->num_pilots - 1;
-    if (tid < 10) {
-        printf("[INTERP KERNEL] tid=%d, pilot_before=%d, pilot_after=%d\n", tid, pilot_before, pilot_after);
-    }
     if (pilot_before == pilot_after) {
         desc->channel_estimates[tid] = desc->pilot_estimates[pilot_before]; // Read from pilot_estimates
     } else {
