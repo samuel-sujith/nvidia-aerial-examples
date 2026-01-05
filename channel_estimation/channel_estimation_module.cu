@@ -127,6 +127,12 @@ void ChannelEstimator::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
+
+    std::cout << "[DEBUG] ChannelEstimator::configure_io (before assign): this=" << this
+          << ", &h_descriptor_=" << &h_descriptor_
+          << ", current_rx_pilots_=" << (const void*)current_rx_pilots_
+          << ", current_tx_pilots_=" << (const void*)current_tx_pilots_
+          << ", current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
     // Update descriptor with current tensor pointers
     h_descriptor_.rx_pilots = current_rx_pilots_;
     h_descriptor_.tx_pilots = current_tx_pilots_;
@@ -135,6 +141,9 @@ void ChannelEstimator::configure_io(
     h_descriptor_.num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
     h_descriptor_.num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
     
+    std::cout << "[DEBUG] ChannelEstimator::configure_io (after assign): h_descriptor_.rx_pilots=" << (const void*)h_descriptor_.rx_pilots
+          << ", h_descriptor_.tx_pilots=" << (const void*)h_descriptor_.tx_pilots
+          << ", h_descriptor_.channel_estimates=" << (const void*)h_descriptor_.channel_estimates << std::endl;
     // Copy descriptor to GPU
     cudaError_t err = cudaMemcpyAsync(
         d_descriptor_,
@@ -203,12 +212,11 @@ void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo>
         }
     }
 
-    std::cout << "[DEBUG] ChannelEstimator::set_inputs: current_rx_pilots_=" << (const void*)current_rx_pilots_
-              << ", current_tx_pilots_=" << (const void*)current_tx_pilots_
-              << ", current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::configure_io: h_descriptor_.rx_pilots=" << (const void*)h_descriptor_.rx_pilots
-              << ", h_descriptor_.tx_pilots=" << (const void*)h_descriptor_.tx_pilots
-              << ", h_descriptor_.channel_estimates=" << (const void*)h_descriptor_.channel_estimates << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::set_inputs: this=" << this
+          << ", &h_descriptor_=" << &h_descriptor_
+          << ", current_rx_pilots_=" << (const void*)current_rx_pilots_
+          << ", current_tx_pilots_=" << (const void*)current_tx_pilots_
+          << ", current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
 }
 
 std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
