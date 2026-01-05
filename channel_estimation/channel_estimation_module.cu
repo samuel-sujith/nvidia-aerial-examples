@@ -1,3 +1,4 @@
+#include <cuComplex.h>
 // Configure IO for ChannelEstimator (updates descriptor and copies to GPU)
 void ChannelEstimator::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
