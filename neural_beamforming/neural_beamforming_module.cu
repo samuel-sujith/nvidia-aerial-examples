@@ -27,6 +27,22 @@ static Logger gLogger;
 
 namespace neural_beamforming {
 
+// Kernel: Convert float* (real, imag interleaved) to cuComplex*
+__global__ void float_interleaved_to_cucomplex(const float* in, cuComplex* out, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        out[idx] = make_cuComplex(in[2 * idx], in[2 * idx + 1]);
+    }
+}
+// Kernel: Convert cuComplex* to float* (real, imag interleaved)
+__global__ void cucomplex_to_float_interleaved(const cuComplex* in, float* out, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        out[2 * idx]     = cuCrealf(in[idx]);
+        out[2 * idx + 1] = cuCimagf(in[idx]);
+    }
+}
+
 /// CUDA kernel for conventional delay-and-sum beamforming
 __global__ void conventional_beamforming_kernel(BeamformingDescriptor* desc) {
     int subcarrier_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -806,7 +822,7 @@ bool NeuralBeamformer::run_neural_inference(cudaStream_t stream) {
     // Launch kernel to convert cuComplex* to float* (real, imag interleaved)
     dim3 blockSize(256);
     dim3 gridSize((total_elements + blockSize.x - 1) / blockSize.x);
-    neural_beamforming::cucomplex_to_float_interleaved<<<gridSize, blockSize, 0, stream>>>(d_channel_matrix_, d_ml_input_, total_elements);
+    cucomplex_to_float_interleaved<<<gridSize, blockSize, 0, stream>>>(d_channel_matrix_, d_ml_input_, total_elements);
 
     // Set up TensorRT explicit I/O bindings
     trt_context_->setTensorAddress("input", d_ml_input_);
@@ -820,34 +836,13 @@ bool NeuralBeamformer::run_neural_inference(cudaStream_t stream) {
     }
 
     // Convert neural network output back to beamforming weights
-    neural_beamforming::float_interleaved_to_cucomplex<<<gridSize, blockSize, 0, stream>>>(d_ml_output_, d_beamforming_weights_, total_elements);
+    float_interleaved_to_cucomplex<<<gridSize, blockSize, 0, stream>>>(d_ml_output_, d_beamforming_weights_, total_elements);
 
     return true;
     #else
     printf("TensorRT not available - using fallback\n");
     return false;
     #endif
-}
-
-} // namespace neural_beamforming
-
-namespace neural_beamforming {
-
-// Kernel: Convert float* (real, imag interleaved) to cuComplex*
-__global__ void float_interleaved_to_cucomplex(const float* in, cuComplex* out, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        out[idx] = make_cuComplex(in[2 * idx], in[2 * idx + 1]);
-    }
-}
-
-// Kernel: Convert cuComplex* to float* (real, imag interleaved)
-__global__ void cucomplex_to_float_interleaved(const cuComplex* in, float* out, int n) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        out[2 * idx]     = cuCrealf(in[idx]);
-        out[2 * idx + 1] = cuCimagf(in[idx]);
-    }
 }
 
 } // namespace neural_beamforming
