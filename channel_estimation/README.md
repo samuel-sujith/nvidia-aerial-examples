@@ -348,3 +348,37 @@ gdb ./channel_estimation_example
 - Adjust CUDA block sizes for target GPU architecture
 - Enable fast math optimizations for production builds
 - Monitor thermal throttling and power limits
+
+## CUDA Troubleshooting and Robustness Notes
+
+### Robust Device Pointer and Buffer Management
+- The pipeline now includes robust device pointer propagation and defensive checks for all device memory (input/output/buffer pointers).
+- CUDA kernels include bounds checks and device-side debug prints to help diagnose pointer and memory issues.
+- If you encounter `cudaStreamSynchronize failed after kernel: an illegal memory access was encountered`, check:
+  - That all device pointers (rx_pilots, tx_pilots, channel_estimates, pilot_estimates) are valid and allocated for the correct number of elements.
+  - That the kernel launch configuration matches the buffer sizes (blockSize, gridSize).
+  - That the input data is copied to device memory correctly and not freed before kernel execution.
+- Device-side debug prints for `tid == 0` will show pointer values and the first element of each input buffer to help diagnose issues.
+
+### Example of Successful Run
+```
+# channel_estimation_example
+Creating channel estimation pipeline...
+Pipeline ID: test_channel_estimation
+Setting up pipeline...
+[DEBUG] Allocated: d_params_=0x7f755c800200 d_pilot_estimates_=0x7f755c800800
+Warming up pipeline...
+Generating test data...
+Number of pilots: 75
+Number of subcarriers: 300
+[DEBUG] Example device ptrs: d_rx_pilots=0x7f755c809000, d_tx_pilots=0x7f755c809400, d_channel_estimates=0x7f755c809800
+[DEBUG] Pipeline: set_inputs called with all_ports. Now calling configure_io...
+Channel estimation pipeline executed successfully!
+First 5 channel estimates:
+  [0]: (0.706574, 0.372196)
+  [1]: (0.757888, 0.338698)
+  [2]: (0.809201, 0.305201)
+  [3]: (0.860515, 0.271703)
+  [4]: (0.911829, 0.238206)
+Test completed successfully!
+```
