@@ -71,21 +71,6 @@ void ChannelEstimator::setup_port_info() {
     );
 }
 
-// ...existing code...
-
-} // namespace channel_estimation
-/*
- * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
- */
-
-#include "channel_estimation_module.hpp"
-#include <stdexcept>
-#include <iostream>
-#include <cuda_runtime.h>
-#include <cuComplex.h>
-
-namespace channel_estimation {
 
 /// CUDA kernel for least squares channel estimation
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
