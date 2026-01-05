@@ -12,7 +12,7 @@
 
 using namespace channel_estimation;
 
-int main() {
+int main(int argc, char** argv) {
     try {
         // Initialize CUDA
         cudaError_t err = cudaSetDevice(0);
