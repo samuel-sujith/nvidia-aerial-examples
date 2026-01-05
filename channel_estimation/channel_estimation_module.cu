@@ -207,11 +207,14 @@ void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo>
 std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
     // Return a copy of output_ports_ with updated device pointers
     std::vector<framework::pipeline::PortInfo> outputs = output_ports_;
-    
     if (!outputs.empty() && !outputs[0].tensors.empty()) {
-        outputs[0].tensors[0].device_ptr = d_channel_estimates_;
+        // Use user-provided output buffer if set, else use module's own buffer
+        if (current_channel_estimates_) {
+            outputs[0].tensors[0].device_ptr = current_channel_estimates_;
+        } else {
+            outputs[0].tensors[0].device_ptr = d_channel_estimates_;
+        }
     }
-    
     return outputs;
 }
 
