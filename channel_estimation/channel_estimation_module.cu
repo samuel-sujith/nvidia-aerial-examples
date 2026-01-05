@@ -202,6 +202,13 @@ void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo>
             current_channel_estimates_ = static_cast<cuComplex*>(port.tensors[0].device_ptr);
         }
     }
+
+    std::cout << "[DEBUG] ChannelEstimator::set_inputs: current_rx_pilots_=" << (const void*)current_rx_pilots_
+              << ", current_tx_pilots_=" << (const void*)current_tx_pilots_
+              << ", current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
+    std::cout << "[DEBUG] ChannelEstimator::configure_io: h_descriptor_.rx_pilots=" << (const void*)h_descriptor_.rx_pilots
+              << ", h_descriptor_.tx_pilots=" << (const void*)h_descriptor_.tx_pilots
+              << ", h_descriptor_.channel_estimates=" << (const void*)h_descriptor_.channel_estimates << std::endl;
 }
 
 std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {

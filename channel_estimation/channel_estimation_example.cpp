@@ -151,6 +151,10 @@ int main(int argc, char** argv) {
         out_port.tensors.resize(1);
         out_port.tensors[0].device_ptr = d_channel_estimates;
 
+        std::cout << "[DEBUG] Example device ptrs: d_rx_pilots=" << d_rx_pilots
+              << ", d_tx_pilots=" << d_tx_pilots
+              << ", d_channel_estimates=" << d_channel_estimates << std::endl;
+
         std::vector<framework::pipeline::PortInfo> inputs = {rx_port, tx_port};
         std::vector<framework::pipeline::PortInfo> outputs = {out_port};
 
