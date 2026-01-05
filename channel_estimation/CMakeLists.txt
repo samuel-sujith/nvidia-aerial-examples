@@ -47,15 +47,16 @@ target_include_directories(channel_estimator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(channel_estimator 
-    CUDA::cudart
-    CUDA::cuda_driver
-    framework::pipeline
-    framework::tensor
-    framework::task
-    framework::log
-    NamedType
-    quill::quill
+target_link_libraries(channel_estimator
+    PUBLIC
+        CUDA::cudart
+        CUDA::cuda_driver
+        framework::pipeline
+        framework::tensor
+        framework::task
+        framework::log
+        NamedType
+        quill::quill
 )
 
 set_target_properties(channel_estimator PROPERTIES
