@@ -54,6 +54,7 @@ struct ChannelEstDescriptor {
     const cuComplex* rx_pilots;       ///< Received pilot symbols [num_pilots]
     const cuComplex* tx_pilots;       ///< Known transmitted pilots [num_pilots]
     cuComplex* channel_estimates;     ///< Output channel estimates [num_subcarriers * num_symbols]
+    cuComplex* pilot_estimates;       ///< Dedicated buffer for pilot estimates
     ChannelEstParams* params;         ///< Estimation parameters
     int num_pilots;                   ///< Total number of pilot symbols
     int num_data_subcarriers;         ///< Number of data subcarriers to interpolate
@@ -127,6 +128,7 @@ private:
     // Device memory pointers
     cuComplex* d_pilot_symbols_{nullptr};
     cuComplex* d_channel_estimates_{nullptr};
+        cuComplex* d_pilot_estimates_{nullptr};
     
     // Current tensor pointers (set during set_inputs)
     const cuComplex* current_rx_pilots_{nullptr};
