@@ -4,8 +4,13 @@
 #include <string>
 #include <vector>
 #include <memory>
+
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+
+#ifdef TENSORRT_AVAILABLE
+#include <NvInfer.h>
+#endif
 
 namespace channel_estimation {
 
