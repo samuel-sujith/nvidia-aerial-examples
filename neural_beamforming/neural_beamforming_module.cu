@@ -829,9 +829,7 @@ bool NeuralBeamformer::run_neural_inference(cudaStream_t stream) {
     #endif
 }
 
-} // namespace neural_beamforming
 
-// Kernel: Convert float* (real, imag interleaved) to cuComplex*
 __global__ void float_interleaved_to_cucomplex(const float* in, cuComplex* out, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n) {
@@ -846,3 +844,5 @@ __global__ void cucomplex_to_float_interleaved(const cuComplex* in, float* out, 
         out[2 * idx + 1] = cuCimagf(in[idx]);
     }
 }
+
+} // namespace neural_beamforming

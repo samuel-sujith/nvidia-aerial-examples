@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
 
         std::cout << "Channel estimation pipeline executed successfully!" << std::endl;
         std::cout << "First 5 channel estimates:" << std::endl;
-        for (int i = 0; i < 5 && i < channel_estimates.size(); ++i) {
+        for (size_t i = 0; i < 5 && i < channel_estimates.size(); ++i) {
             std::cout << "  [" << i << "]: (" << cuCrealf(channel_estimates[i]) << ", " << cuCimagf(channel_estimates[i]) << ")" << std::endl;
         }
         
