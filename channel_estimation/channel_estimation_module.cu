@@ -13,26 +13,15 @@ namespace channel_estimation {
 /// CUDA kernel for least squares channel estimation
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    
     if (tid >= desc->num_pilots) return;
-    
-    // Print descriptor values before kernel launch
-    printf("[KERNEL LAUNCH DEBUG] desc->rx_pilots=%p, desc->tx_pilots=%p, desc->channel_estimates=%p, num_pilots=%d, num_data_subcarriers=%d\n",
-           (void*)desc->rx_pilots, (void*)desc->tx_pilots, (void*)desc->channel_estimates, desc->num_pilots, desc->num_data_subcarriers);
-
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
-    
-    // Least squares: H = Y / X (element-wise division)
     cuComplex channel_est = cuCdivf(rx_pilot, tx_pilot);
-    
-    // Apply beta scaling
     channel_est = make_cuComplex(
         cuCrealf(channel_est) * desc->params->beta_scaling,
         cuCimagf(channel_est) * desc->params->beta_scaling
     );
-    
-    desc->channel_estimates[tid] = channel_est;
+    desc->pilot_estimates[tid] = channel_est; // Write to pilot_estimates
 }
 
 /// CUDA kernel for linear interpolation between pilots
@@ -50,11 +39,11 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
         printf("[INTERP KERNEL] tid=%d, pilot_before=%d, pilot_after=%d\n", tid, pilot_before, pilot_after);
     }
     if (pilot_before == pilot_after) {
-        desc->channel_estimates[tid] = desc->channel_estimates[pilot_before];
+        desc->channel_estimates[tid] = desc->pilot_estimates[pilot_before]; // Read from pilot_estimates
     } else {
         float alpha = (float)(tid - pilot_before) / pilot_spacing;
-        cuComplex h_before = desc->channel_estimates[pilot_before];
-        cuComplex h_after = desc->channel_estimates[pilot_after];
+        cuComplex h_before = desc->pilot_estimates[pilot_before];
+        cuComplex h_after = desc->pilot_estimates[pilot_after];
         cuComplex interpolated = make_cuComplex(
             (1.0f - alpha) * cuCrealf(h_before) + alpha * cuCrealf(h_after),
             (1.0f - alpha) * cuCimagf(h_before) + alpha * cuCimagf(h_after)
@@ -137,6 +126,7 @@ void ChannelEstimator::configure_io(
     h_descriptor_.params = &params_;
     h_descriptor_.num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
     h_descriptor_.num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
+    h_descriptor_.pilot_estimates = d_pilot_estimates_; // NEW
     
     std::cout << "[DEBUG] ChannelEstimator::configure_io (after assign): h_descriptor_.rx_pilots=" << (const void*)h_descriptor_.rx_pilots
           << ", h_descriptor_.tx_pilots=" << (const void*)h_descriptor_.tx_pilots
@@ -219,14 +209,11 @@ void ChannelEstimator::allocate_gpu_memory() {
     size_t estimates_size = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex);
     
     err = cudaMalloc(&d_pilot_symbols_, pilot_size);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for pilot symbols");
-    }
-    
+    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate GPU memory for pilot symbols");
+    err = cudaMalloc(&d_pilot_estimates_, pilot_size); // NEW
+    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate GPU memory for pilot estimates");
     err = cudaMalloc(&d_channel_estimates_, estimates_size);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for channel estimates");
-    }
+    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate GPU memory for channel estimates");
 }
 
 void ChannelEstimator::deallocate_gpu_memory() {
@@ -238,6 +225,7 @@ void ChannelEstimator::deallocate_gpu_memory() {
         cudaFree(d_pilot_symbols_);
         d_pilot_symbols_ = nullptr;
     }
+    if (d_pilot_estimates_) { cudaFree(d_pilot_estimates_); d_pilot_estimates_ = nullptr; }
     if (d_channel_estimates_) {
         cudaFree(d_channel_estimates_);
         d_channel_estimates_ = nullptr;
@@ -246,24 +234,14 @@ void ChannelEstimator::deallocate_gpu_memory() {
 
 cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stream) {
     int num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
-    
-    // Launch LS estimation kernel
     dim3 blockSize(256);
     dim3 gridSize((num_pilots + blockSize.x - 1) / blockSize.x);
-    
     ls_channel_estimation_kernel<<<gridSize, blockSize, 0, stream>>>(d_descriptor_);
-    
     cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        return err;
-    }
-    
-    // Launch interpolation kernel for data subcarriers
+    if (err != cudaSuccess) return err;
     int num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
     dim3 gridSizeInterp((num_data_subcarriers + blockSize.x - 1) / blockSize.x);
-    
     interpolate_channel_estimates_kernel<<<gridSizeInterp, blockSize, 0, stream>>>(d_descriptor_);
-    
     return cudaGetLastError();
 }
 
