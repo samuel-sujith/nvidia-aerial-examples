@@ -75,6 +75,7 @@ int main(int argc, char** argv) {
         // Generate test data
         int num_pilots = params.num_resource_blocks * 12 / params.pilot_spacing;
         int num_subcarriers = params.num_resource_blocks * 12;
+        int num_data_subcarriers = params.num_resource_blocks * 12 * params.num_ofdm_symbols;
         
         std::cout << "Generating test data..." << std::endl;
         std::cout << "Number of pilots: " << num_pilots << std::endl;
@@ -120,7 +121,7 @@ int main(int argc, char** argv) {
             return -1;
         }
         
-        err = cudaMalloc(&d_channel_estimates, num_subcarriers * params.num_ofdm_symbols * sizeof(cuComplex));
+        err = cudaMalloc(&d_channel_estimates, num_data_subcarriers * sizeof(cuComplex));
         if (err != cudaSuccess) {
             std::cerr << "Failed to allocate device memory for channel estimates" << std::endl;
             return -1;
@@ -172,7 +173,7 @@ int main(int argc, char** argv) {
         pipeline->execute_stream(stream);
 
         // Copy results back to host
-        std::vector<cuComplex> channel_estimates(num_subcarriers * params.num_ofdm_symbols);
+        std::vector<cuComplex> channel_estimates(num_data_subcarriers);
         err = cudaMemcpy(channel_estimates.data(), d_channel_estimates, channel_estimates.size() * sizeof(cuComplex), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess) {
             std::cerr << "Failed to copy channel estimates to host: " << cudaGetErrorString(err) << std::endl;
