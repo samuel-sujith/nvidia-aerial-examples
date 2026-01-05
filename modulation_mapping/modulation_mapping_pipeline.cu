@@ -286,17 +286,26 @@ bool ModulationPipeline::process_device(
         
         // Get outputs and copy to provided buffer
         auto outputs = mapper_->get_outputs();
-        if (!outputs.empty() && !outputs[0].tensors.empty()) {
-            size_t output_bytes;
-            if (is_modulation) {
-                output_bytes = get_symbols_size();
-            } else {
-                output_bytes = get_bits_size();
+        const void* output_ptr = nullptr;
+        if (is_modulation) {
+            // Modulation: use first output port (output_symbols)
+            if (!outputs.empty() && !outputs[0].tensors.empty()) {
+                output_ptr = outputs[0].tensors[0].device_ptr;
             }
-            
+        } else {
+            // Demodulation: find port named 'output_bits'
+            for (const auto& port : outputs) {
+                if (port.name == "output_bits" && !port.tensors.empty()) {
+                    output_ptr = port.tensors[0].device_ptr;
+                    break;
+                }
+            }
+        }
+        if (output_ptr) {
+            size_t output_bytes = is_modulation ? get_symbols_size() : get_bits_size();
             cudaError_t err = cudaMemcpyAsync(
                 d_output_data,
-                outputs[0].tensors[0].device_ptr,
+                output_ptr,
                 output_bytes,
                 cudaMemcpyDeviceToDevice,
                 stream
