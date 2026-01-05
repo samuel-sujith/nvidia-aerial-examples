@@ -44,10 +44,18 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
     if (!desc->channel_estimates) return;
     
     int pilot_spacing = desc->params->pilot_spacing;
-    
-    // Find surrounding pilot indices
     int pilot_before = (tid / pilot_spacing) * pilot_spacing;
     int pilot_after = pilot_before + pilot_spacing;
+    
+    // Defensive bounds checks
+    if (pilot_before < 0) pilot_before = 0;
+    if (pilot_before >= desc->num_pilots) pilot_before = desc->num_pilots - 1;
+    if (pilot_after < 0) pilot_after = 0;
+    if (pilot_after >= desc->num_pilots) pilot_after = desc->num_pilots - 1;
+    
+    // Find surrounding pilot indices
+    pilot_before = (tid / pilot_spacing) * pilot_spacing;
+    pilot_after = pilot_before + pilot_spacing;
     
     // Boundary checks
     if (pilot_after >= desc->num_pilots) {
