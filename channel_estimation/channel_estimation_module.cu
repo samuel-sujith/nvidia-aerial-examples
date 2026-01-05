@@ -298,4 +298,44 @@ ChannelEstimator::get_output_memory_characteristics(std::string_view port_name) 
     return chars;
 }
 
+std::vector<std::string> ChannelEstimator::get_input_port_names() const {
+    std::vector<std::string> names;
+    for (const auto& port : input_ports_) {
+        names.push_back(port.name);
+    }
+    return names;
+}
+
+std::vector<std::string> ChannelEstimator::get_output_port_names() const {
+    std::vector<std::string> names;
+    for (const auto& port : output_ports_) {
+        names.push_back(port.name);
+    }
+    return names;
+}
+
+std::vector<framework::tensor::TensorInfo> ChannelEstimator::get_input_tensor_info(std::string_view port_name) const {
+    std::vector<framework::tensor::TensorInfo> tensor_infos;
+    for (const auto& port : input_ports_) {
+        if (port.name == port_name) {
+            for (const auto& tensor : port.tensors) {
+                tensor_infos.push_back(tensor.tensor_info);
+            }
+        }
+    }
+    return tensor_infos;
+}
+
+std::vector<framework::tensor::TensorInfo> ChannelEstimator::get_output_tensor_info(std::string_view port_name) const {
+    std::vector<framework::tensor::TensorInfo> tensor_infos;
+    for (const auto& port : output_ports_) {
+        if (port.name == port_name) {
+            for (const auto& tensor : port.tensors) {
+                tensor_infos.push_back(tensor.tensor_info);
+            }
+        }
+    }
+    return tensor_infos;
+}
+
 } // namespace channel_estimation
