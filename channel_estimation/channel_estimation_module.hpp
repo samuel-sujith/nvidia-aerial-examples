@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <span>
+#include <algorithm>  // for std::min
 
 #include "pipeline/imodule.hpp"
 #include "pipeline/istream_executor.hpp"
@@ -25,7 +26,7 @@ namespace channel_estimation {
 /// Channel estimation algorithm types
 enum class ChannelEstAlgorithm {
     LEAST_SQUARES,      ///< Least squares estimation
-    MMSE,              ///< Minimum mean square error  
+    MMSE,               ///< Minimum mean square error  
     LINEAR_INTERPOLATION, ///< Linear interpolation between pilots
     ML_TENSORRT         ///< Machine learning-based estimation using TensorRT
 };
@@ -33,37 +34,37 @@ enum class ChannelEstAlgorithm {
 /// Channel estimation parameters
 struct ChannelEstParams {
     ChannelEstAlgorithm algorithm{ChannelEstAlgorithm::LEAST_SQUARES};
-    int num_rx_antennas{1};        ///< Number of receive antennas
-    int num_tx_layers{1};          ///< Number of transmit layers
+    int num_rx_antennas{1};         ///< Number of receive antennas
+    int num_tx_layers{1};           ///< Number of transmit layers
     int num_resource_blocks{273};   ///< Number of resource blocks
-    int num_ofdm_symbols{14};      ///< Number of OFDM symbols per slot
-    int pilot_spacing{4};          ///< Pilot symbol spacing in frequency
-    float noise_variance{0.1f};    ///< Estimated noise variance for MMSE
-    float beta_scaling{1.0f};      ///< Channel scaling factor
+    int num_ofdm_symbols{14};       ///< Number of OFDM symbols per slot
+    int pilot_spacing{4};           ///< Pilot symbol spacing in frequency
+    float noise_variance{0.1f};     ///< Estimated noise variance for MMSE
+    float beta_scaling{1.0f};       ///< Channel scaling factor
 
     // ML-based estimation options
-    std::string model_path;        ///< Path to TensorRT engine/model file
-    int max_batch_size{32};        ///< Maximum batch size for inference
-    bool use_fp16{true};           ///< Use FP16 precision for inference
-    int ml_input_size{0};          ///< ML model input size
-    int ml_output_size{0};         ///< ML model output size
+    std::string model_path;         ///< Path to TensorRT engine/model file
+    int max_batch_size{32};         ///< Maximum batch size for inference
+    bool use_fp16{true};            ///< Use FP16 precision for inference
+    int ml_input_size{0};           ///< ML model input size
+    int ml_output_size{0};          ///< ML model output size
 };
 
 /// GPU kernel descriptor for channel estimation
 struct ChannelEstDescriptor {
-    const cuComplex* rx_pilots;       ///< Received pilot symbols [num_pilots]
-    const cuComplex* tx_pilots;       ///< Known transmitted pilots [num_pilots]
-    cuComplex* channel_estimates;     ///< Output channel estimates [num_subcarriers * num_symbols]
-    cuComplex* pilot_estimates;       ///< Dedicated buffer for pilot estimates
-    ChannelEstParams* params;         ///< Estimation parameters
-    int num_pilots;                   ///< Total number of pilot symbols
-    int num_data_subcarriers;         ///< Number of data subcarriers to interpolate
+    const cuComplex* rx_pilots;         ///< Received pilot symbols [num_pilots]
+    const cuComplex* tx_pilots;         ///< Known transmitted pilots [num_pilots]
+    cuComplex* channel_estimates;       ///< Output channel estimates [num_subcarriers * num_symbols]
+    cuComplex* pilot_estimates;         ///< Dedicated buffer for pilot estimates
+    const ChannelEstParams* params;     ///< FIXED: const device params pointer
+    int num_pilots;                     ///< Total number of pilot symbols
+    int num_data_subcarriers;           ///< Number of data subcarriers to interpolate
 };
 
 /// Channel estimator module implementing the framework interface
 class ChannelEstimator final : public framework::pipeline::IModule, 
-                               public framework::pipeline::IAllocationInfoProvider,
-                               public framework::pipeline::IStreamExecutor {
+                              public framework::pipeline::IAllocationInfoProvider,
+                              public framework::pipeline::IStreamExecutor {
 public:
     /**
      * Constructor
@@ -125,10 +126,13 @@ private:
     ChannelEstDescriptor* d_descriptor_;
     ChannelEstDescriptor h_descriptor_;
     
+    // FIXED: Device copy of params (CRITICAL)
+    ChannelEstParams* d_params_{nullptr};
+    
     // Device memory pointers
     cuComplex* d_pilot_symbols_{nullptr};
     cuComplex* d_channel_estimates_{nullptr};
-        cuComplex* d_pilot_estimates_{nullptr};
+    cuComplex* d_pilot_estimates_{nullptr};
     
     // Current tensor pointers (set during set_inputs)
     const cuComplex* current_rx_pilots_{nullptr};

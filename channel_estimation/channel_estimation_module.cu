@@ -6,23 +6,24 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#include <algorithm>  // std::min
 #include <cstdio>
 
 namespace channel_estimation {
 
-/// CUDA kernel for least squares channel estimation
+/// CUDA kernel for least squares channel estimation (SAFE)
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= desc->num_pilots) return;
+    if (tid >= desc->num_pilots || !desc->params) return;
     
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
     
-    // Safe division: check for zero denominator
+    // Safe division
     float tx_real = cuCrealf(tx_pilot);
     float tx_imag = cuCimagf(tx_pilot);
     if (tx_real == 0.0f && tx_imag == 0.0f) {
-        desc->pilot_estimates[tid] = make_cuComplex(0.0f, 0.0f);  // Or handle as needed
+        desc->pilot_estimates[tid] = make_cuComplex(0.0f, 0.0f);
         return;
     }
     
@@ -34,23 +35,23 @@ __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     desc->pilot_estimates[tid] = channel_est;
 }
 
-
-/// CUDA kernel for linear interpolation between pilots
+/// CUDA kernel for linear interpolation (SAFE)
 __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= desc->num_data_subcarriers) return;
+    if (tid >= desc->num_data_subcarriers || !desc->params) return;
     
     int pilot_spacing = desc->params->pilot_spacing;
-    int pilot_idx = tid % (desc->num_pilots * pilot_spacing);  // Local pos within repeated pattern
+    if (pilot_spacing <= 0) return;  // Safety
+    
+    int pilot_idx = tid % (desc->num_pilots * pilot_spacing);
     int pilot_before = (pilot_idx / pilot_spacing) * pilot_spacing;
     int pilot_after = pilot_before + pilot_spacing;
     
-    // Clamp indices safely
+    // Clamp safely
     pilot_before = min(pilot_before, desc->num_pilots - 1);
     pilot_after = min(pilot_after, desc->num_pilots - 1);
     
-    if (pilot_before >= desc->num_pilots || pilot_after >= desc->num_pilots || 
-        pilot_before < 0 || pilot_after < 0) {
+    if (pilot_before < 0 || pilot_after < 0) {
         desc->channel_estimates[tid] = make_cuComplex(0.0f, 0.0f);
         return;
     }
@@ -58,7 +59,7 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
     if (pilot_before == pilot_after) {
         desc->channel_estimates[tid] = desc->pilot_estimates[pilot_before];
     } else {
-        float alpha = (float)(pilot_idx - pilot_before) / (float)pilot_spacing;
+        float alpha = static_cast<float>(pilot_idx - pilot_before) / static_cast<float>(pilot_spacing);
         cuComplex h_before = desc->pilot_estimates[pilot_before];
         cuComplex h_after = desc->pilot_estimates[pilot_after];
         cuComplex interpolated = make_cuComplex(
@@ -69,12 +70,10 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
     }
 }
 
-
 ChannelEstimator::ChannelEstimator(
     const std::string& module_id,
     const ChannelEstParams& params
-) : module_id_(module_id), params_(params), d_descriptor_(nullptr) {
-    
+) : module_id_(module_id), params_(params), d_descriptor_(nullptr), d_params_(nullptr) {
     setup_port_info();
 }
 
@@ -85,10 +84,8 @@ ChannelEstimator::~ChannelEstimator() {
 void ChannelEstimator::setup_port_info() {
     using namespace framework::tensor;
     
-    // Setup input ports
     input_ports_.resize(2);
     
-    // Input port 0: rx_pilots
     input_ports_[0].name = "rx_pilots";
     input_ports_[0].tensors.resize(1);
     input_ports_[0].tensors[0].tensor_info = TensorInfo(
@@ -96,7 +93,6 @@ void ChannelEstimator::setup_port_info() {
         std::vector<std::size_t>{static_cast<std::size_t>(params_.num_resource_blocks * 12 / params_.pilot_spacing)}
     );
     
-    // Input port 1: tx_pilots  
     input_ports_[1].name = "tx_pilots";
     input_ports_[1].tensors.resize(1);
     input_ports_[1].tensors[0].tensor_info = TensorInfo(
@@ -104,10 +100,8 @@ void ChannelEstimator::setup_port_info() {
         std::vector<std::size_t>{static_cast<std::size_t>(params_.num_resource_blocks * 12 / params_.pilot_spacing)}
     );
     
-    // Setup output ports
     output_ports_.resize(1);
     
-    // Output port 0: channel_estimates
     output_ports_[0].name = "channel_estimates";
     output_ports_[0].tensors.resize(1);
     output_ports_[0].tensors[0].tensor_info = TensorInfo(
@@ -124,32 +118,23 @@ void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice
 }
 
 void ChannelEstimator::warmup(cudaStream_t /*stream*/) {
-    // No specific warmup needed for channel estimation
+    // No warmup needed
 }
 
 void ChannelEstimator::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
-
-    std::cout << "[DEBUG] ChannelEstimator::configure_io (before assign): this=" << this
-          << ", &h_descriptor_=" << &h_descriptor_
-          << ", current_rx_pilots_=" << (const void*)current_rx_pilots_
-          << ", current_tx_pilots_=" << (const void*)current_tx_pilots_
-          << ", current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
-    // Update descriptor with current tensor pointers
+    // Update host descriptor
     h_descriptor_.rx_pilots = current_rx_pilots_;
     h_descriptor_.tx_pilots = current_tx_pilots_;
     h_descriptor_.channel_estimates = current_channel_estimates_;
-    h_descriptor_.params = &params_;
+    h_descriptor_.params = d_params_;  // FIXED: Device params pointer
     h_descriptor_.num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
     h_descriptor_.num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
-    h_descriptor_.pilot_estimates = d_pilot_estimates_; // NEW
+    h_descriptor_.pilot_estimates = d_pilot_estimates_;
     
-    std::cout << "[DEBUG] ChannelEstimator::configure_io (after assign): h_descriptor_.rx_pilots=" << (const void*)h_descriptor_.rx_pilots
-          << ", h_descriptor_.tx_pilots=" << (const void*)h_descriptor_.tx_pilots
-          << ", h_descriptor_.channel_estimates=" << (const void*)h_descriptor_.channel_estimates << std::endl;
-    // Copy descriptor to GPU
+    // Copy to device
     cudaError_t err = cudaMemcpyAsync(
         d_descriptor_,
         &h_descriptor_,
@@ -157,14 +142,12 @@ void ChannelEstimator::configure_io(
         cudaMemcpyHostToDevice,
         stream
     );
-    
     if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to copy descriptor to GPU");
+        throw std::runtime_error(std::string("cudaMemcpyAsync descriptor failed: ") + cudaGetErrorString(err));
     }
 }
 
 void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
-    // Accept both input and output ports in the vector
     for (const auto& port : inputs) {
         if (port.name == "rx_pilots" && !port.tensors.empty()) {
             current_rx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
@@ -174,156 +157,97 @@ void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo>
             current_channel_estimates_ = static_cast<cuComplex*>(port.tensors[0].device_ptr);
         }
     }
-
-    std::cout << "[DEBUG] ChannelEstimator::set_inputs: this=" << this
-          << ", &h_descriptor_=" << &h_descriptor_
-          << ", current_rx_pilots_=" << (const void*)current_rx_pilots_
-          << ", current_tx_pilots_=" << (const void*)current_tx_pilots_
-          << ", current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
 }
 
 std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
-    // Return a copy of output_ports_ with updated device pointers
-    std::vector<framework::pipeline::PortInfo> outputs = output_ports_;
-    if (!outputs.empty() && !outputs[0].tensors.empty()) {
-        // Use user-provided output buffer if set, else use module's own buffer
-        if (current_channel_estimates_) {
-            outputs[0].tensors[0].device_ptr = current_channel_estimates_;
-        } else {
-            outputs[0].tensors[0].device_ptr = d_channel_estimates_;
-        }
+    auto outputs = output_ports_;
+    if (!outputs.empty() && !outputs[0].tensors.empty() && current_channel_estimates_) {
+        outputs[0].tensors[0].device_ptr = current_channel_estimates_;
     }
     return outputs;
 }
 
 void ChannelEstimator::execute(cudaStream_t stream) {
-    // Zero-initialize output
-    cudaError_t err = cudaMemsetAsync(current_channel_estimates_, 0, 
-        params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex), stream);
+    // Validate pointers
+    if (!current_rx_pilots_ || !current_tx_pilots_ || !current_channel_estimates_) {
+        throw std::runtime_error("Missing input/output pointers");
+    }
+    
+    // Zero output
+    size_t out_size = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
+    cudaError_t err = cudaMemsetAsync(current_channel_estimates_, 0, out_size, stream);
     if (err != cudaSuccess) {
         throw std::runtime_error(std::string("cudaMemsetAsync failed: ") + cudaGetErrorString(err));
     }
     
-    // CRITICAL FIX: Configure descriptor BEFORE kernel launch
+    // Configure & copy descriptor
     configure_io({}, stream);
-
-
-    // Defensive checks and debug prints for all device memory
-    std::cout << "[DEBUG] ChannelEstimator::execute: d_descriptor_=" << (const void*)d_descriptor_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: d_pilot_symbols_=" << (const void*)d_pilot_symbols_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: d_pilot_estimates_=" << (const void*)d_pilot_estimates_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: d_channel_estimates_=" << (const void*)d_channel_estimates_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: h_descriptor_.pilot_estimates=" << (const void*)h_descriptor_.pilot_estimates << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: current_rx_pilots_=" << (const void*)current_rx_pilots_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: current_tx_pilots_=" << (const void*)current_tx_pilots_ << std::endl;
-    std::cout << "[DEBUG] ChannelEstimator::execute: current_channel_estimates_=" << (const void*)current_channel_estimates_ << std::endl;
-
-    if (!d_descriptor_) {
-        std::cerr << "[ERROR] d_descriptor_ is nullptr!" << std::endl;
-        throw std::runtime_error("d_descriptor_ is nullptr");
-    }
-    if (!d_pilot_symbols_) {
-        std::cerr << "[ERROR] d_pilot_symbols_ is nullptr!" << std::endl;
-        throw std::runtime_error("d_pilot_symbols_ is nullptr");
-    }
-    if (!d_pilot_estimates_) {
-        std::cerr << "[ERROR] d_pilot_estimates_ is nullptr!" << std::endl;
-        throw std::runtime_error("d_pilot_estimates_ is nullptr");
-    }
-    if (!d_channel_estimates_) {
-        std::cerr << "[ERROR] d_channel_estimates_ is nullptr!" << std::endl;
-        throw std::runtime_error("d_channel_estimates_ is nullptr");
-    }
-    if (!h_descriptor_.pilot_estimates) {
-        std::cerr << "[ERROR] h_descriptor_.pilot_estimates is nullptr!" << std::endl;
-        throw std::runtime_error("h_descriptor_.pilot_estimates is nullptr");
-    }
-    if (!current_rx_pilots_) {
-        std::cerr << "[ERROR] current_rx_pilots_ is nullptr!" << std::endl;
-        throw std::runtime_error("current_rx_pilots_ is nullptr");
-    }
-    if (!current_tx_pilots_) {
-        std::cerr << "[ERROR] current_tx_pilots_ is nullptr!" << std::endl;
-        throw std::runtime_error("current_tx_pilots_ is nullptr");
-    }
-    if (!current_channel_estimates_) {
-        std::cerr << "[ERROR] current_channel_estimates_ is nullptr!" << std::endl;
-        throw std::runtime_error("current_channel_estimates_ is nullptr");
-    }
-
+    
+    // Launch kernels
     err = launch_channel_estimation_kernel(stream);
     if (err != cudaSuccess) {
-        std::cerr << "[ERROR] Channel estimation kernel launch failed: " << cudaGetErrorString(err) << std::endl;
-        throw std::runtime_error("Channel estimation kernel launch failed");
+        throw std::runtime_error(std::string("Kernel launch failed: ") + cudaGetErrorString(err));
     }
+    
     err = cudaStreamSynchronize(stream);
     if (err != cudaSuccess) {
-        std::cerr << "[ERROR] cudaStreamSynchronize failed after kernel: " << cudaGetErrorString(err) << std::endl;
-        throw std::runtime_error("cudaStreamSynchronize failed after kernel");
+        throw std::runtime_error(std::string("Stream sync failed: ") + cudaGetErrorString(err));
     }
 }
 
 void ChannelEstimator::allocate_gpu_memory() {
-    // Allocate GPU memory for descriptor
-    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(ChannelEstDescriptor));
-    if (err != cudaSuccess) {
-        std::cerr << "[ERROR] Failed to allocate GPU memory for descriptor" << std::endl;
-        throw std::runtime_error("Failed to allocate GPU memory for descriptor");
-    }
-
-    // Allocate memory for pilot symbols and channel estimates
-    size_t pilot_size = params_.num_resource_blocks * 12 / params_.pilot_spacing * sizeof(cuComplex);
-    size_t estimates_size = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex);
-
+    cudaError_t err;
+    
+    // Descriptor
+    err = cudaMalloc(&d_descriptor_, sizeof(ChannelEstDescriptor));
+    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_descriptor_ failed");
+    
+    // FIXED: Device params copy
+    err = cudaMalloc(&d_params_, sizeof(ChannelEstParams));
+    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_params_ failed");
+    err = cudaMemcpy(d_params_, &params_, sizeof(ChannelEstParams), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) throw std::runtime_error("cudaMemcpy d_params_ failed");
+    
+    // Buffers
+    size_t pilot_size = params_.num_resource_blocks * 12ULL / params_.pilot_spacing * sizeof(cuComplex);
+    size_t estimates_size = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
+    
     err = cudaMalloc(&d_pilot_symbols_, pilot_size);
-    if (err != cudaSuccess) {
-        std::cerr << "[ERROR] Failed to allocate GPU memory for pilot symbols" << std::endl;
-        throw std::runtime_error("Failed to allocate GPU memory for pilot symbols");
-    }
-    err = cudaMalloc(&d_pilot_estimates_, pilot_size); // NEW
-    if (err != cudaSuccess) {
-        std::cerr << "[ERROR] Failed to allocate GPU memory for pilot estimates" << std::endl;
-        throw std::runtime_error("Failed to allocate GPU memory for pilot estimates");
-    }
+    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_pilot_symbols_ failed");
+    
+    err = cudaMalloc(&d_pilot_estimates_, pilot_size);
+    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_pilot_estimates_ failed");
+    cudaMemset(d_pilot_estimates_, 0, pilot_size);  // Zero init
+    
     err = cudaMalloc(&d_channel_estimates_, estimates_size);
-    if (err != cudaSuccess) {
-        std::cerr << "[ERROR] Failed to allocate GPU memory for channel estimates" << std::endl;
-        throw std::runtime_error("Failed to allocate GPU memory for channel estimates");
-    }
-
-    // Debug prints for all device memory after allocation
-    std::cout << "[DEBUG] allocate_gpu_memory: d_descriptor_=" << (const void*)d_descriptor_ << std::endl;
-    std::cout << "[DEBUG] allocate_gpu_memory: d_pilot_symbols_=" << (const void*)d_pilot_symbols_ << std::endl;
-    std::cout << "[DEBUG] allocate_gpu_memory: d_pilot_estimates_=" << (const void*)d_pilot_estimates_ << std::endl;
-    std::cout << "[DEBUG] allocate_gpu_memory: d_channel_estimates_=" << (const void*)d_channel_estimates_ << std::endl;
+    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_channel_estimates_ failed");
+    
+    std::cout << "[DEBUG] Allocated: d_params_=" << d_params_ 
+              << " d_pilot_estimates_=" << d_pilot_estimates_ << std::endl;
 }
 
 void ChannelEstimator::deallocate_gpu_memory() {
-    if (d_descriptor_) {
-        cudaFree(d_descriptor_);
-        d_descriptor_ = nullptr;
-    }
-    if (d_pilot_symbols_) {
-        cudaFree(d_pilot_symbols_);
-        d_pilot_symbols_ = nullptr;
-    }
-    if (d_pilot_estimates_) { cudaFree(d_pilot_estimates_); d_pilot_estimates_ = nullptr; }
-    if (d_channel_estimates_) {
-        cudaFree(d_channel_estimates_);
-        d_channel_estimates_ = nullptr;
-    }
+    if (d_params_) cudaFree(d_params_);
+    if (d_descriptor_) cudaFree(d_descriptor_);
+    if (d_pilot_symbols_) cudaFree(d_pilot_symbols_);
+    if (d_pilot_estimates_) cudaFree(d_pilot_estimates_);
+    if (d_channel_estimates_) cudaFree(d_channel_estimates_);
+    d_params_ = d_descriptor_ = d_pilot_symbols_ = d_pilot_estimates_ = d_channel_estimates_ = nullptr;
 }
 
 cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stream) {
     int num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
-    dim3 blockSize(32);
+    dim3 blockSize(256);
     dim3 gridSize((num_pilots + blockSize.x - 1) / blockSize.x);
+    
     ls_channel_estimation_kernel<<<gridSize, blockSize, 0, stream>>>(d_descriptor_);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) return err;
-    int num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
-    dim3 gridSizeInterp((num_data_subcarriers + blockSize.x - 1) / blockSize.x);
-    interpolate_channel_estimates_kernel<<<gridSizeInterp, blockSize, 0, stream>>>(d_descriptor_);
+    
+    int num_data = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
+    dim3 gridInterp((num_data + blockSize.x - 1) / blockSize.x);
+    interpolate_channel_estimates_kernel<<<gridInterp, blockSize, 0, stream>>>(d_descriptor_);
+    
     return cudaGetLastError();
 }
 
