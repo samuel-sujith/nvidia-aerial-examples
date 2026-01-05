@@ -147,7 +147,7 @@ make -j$(nproc)
 - `--users <num>`: Number of users (default: 4)
 - `--subcarriers <num>`: Number of subcarriers (default: 1200)
 - `--symbols <num>`: Number of OFDM symbols (default: 14)
-- `--model-path <path>`: Path to neural network model (.onnx or .trt file)
+- `--model <path>`: Path to neural network model (.onnx or .trt file)
 - `--batch-size <num>`: Neural network batch size (default: 32)
 - `--use-fp16`: Enable FP16 precision for neural inference
 - `--test-gain`: Run beamforming gain comparison
@@ -295,18 +295,12 @@ The neural beamforming example can load pre-trained models in multiple formats:
 # Use ONNX model (will be converted to TensorRT at runtime)
 ./neural_beamforming_example \
     --algorithm NEURAL \
-    --model-path beamforming_model.onnx
+    --model beamforming_model.onnx
 
 # Use pre-compiled TensorRT engine for optimal performance
 ./neural_beamforming_example \
     --algorithm NEURAL \
-    --model-path beamforming_model.trt
-
-# Compare neural vs classical algorithms
-./neural_beamforming_example \
-    --algorithm NEURAL \
-    --model-path beamforming_model.trt \
-    --compare-algorithms
+    --model beamforming_model.trt
 ```
 
 #### Model Configuration in Code
@@ -370,7 +364,7 @@ Example performance comparison between algorithms:
 # Compare all algorithms with neural model
 ./neural_beamforming_example \
     --compare-algorithms \
-    --model-path beamforming_model.trt \
+    --model beamforming_model.trt \
     --iterations 1000
 
 # Output:
