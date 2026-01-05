@@ -17,8 +17,16 @@ __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     //printf("[LS KERNEL] tid=%d, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n", tid, desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
     //if (tid >= desc->num_pilots) return;
     if (tid >= desc->num_pilots) return;
+    if (tid == 0) {
+        printf("[LS KERNEL] tid=0, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n",
+               desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
+        cuComplex rx0 = desc->rx_pilots[0];
+        cuComplex tx0 = desc->tx_pilots[0];
+        printf("[LS KERNEL] rx_pilots[0]=(%f,%f), tx_pilots[0]=(%f,%f)\n",
+               cuCrealf(rx0), cuCimagf(rx0), cuCrealf(tx0), cuCimagf(tx0));
+    }
     if (tid < 10) {
-        printf("[LS KERNEL] tid=%d, num_pilots=%d, ...");
+        printf("[LS KERNEL] tid=%d, num_pilots=%d\n", tid, desc->num_pilots);
     }
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
