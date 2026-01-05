@@ -792,47 +792,57 @@ bool NeuralBeamformer::load_engine_from_file(const std::string& engine_path) {
 }
 
 bool NeuralBeamformer::run_neural_inference(cudaStream_t stream) {
-#ifdef TENSORRT_AVAILABLE
+    #ifdef TENSORRT_AVAILABLE
     if (!trt_context_ || !trt_engine_) {
         printf("TensorRT engine or context not initialized\n");
         return false;
     }
-    
+
     // Prepare input data: convert complex channel matrix to real-valued input
     // Input format: [real(H), imag(H)] where H is channel matrix
     int total_elements = h_descriptor_.num_users * h_descriptor_.num_antennas * h_descriptor_.num_subcarriers;
-    
-    // Launch kernel to convert complex data to real input for neural network
+    int input_floats = total_elements * 2; // real, imag interleaved
+
+    // Launch kernel to convert cuComplex* to float* (real, imag interleaved)
     dim3 blockSize(256);
     dim3 gridSize((total_elements + blockSize.x - 1) / blockSize.x);
-    
-    // This kernel would convert cuComplex* to float* format suitable for neural network
-    // For now, we'll use a placeholder that copies the magnitude
-    // prepare_neural_input_kernel<<<gridSize, blockSize, 0, stream>>>(d_channel_matrix_, d_ml_input_, total_elements);
-    
-    // Set up TensorRT bindings
-    void* bindings[2] = { d_ml_input_, d_ml_output_ };
-    
-    // Run inference
-    bool success = trt_context_->enqueueV3(stream);
-    
-    // Set input and output bindings
+    cucomplex_to_float_interleaved<<<gridSize, blockSize, 0, stream>>>(d_channel_matrix_, d_ml_input_, total_elements);
+
+    // Set up TensorRT explicit I/O bindings
     trt_context_->setTensorAddress("input", d_ml_input_);
     trt_context_->setTensorAddress("output", d_ml_output_);
+
+    // Run inference
+    bool success = trt_context_->enqueueV3(stream);
     if (!success) {
         printf("TensorRT inference failed\n");
         return false;
     }
-    
+
     // Convert neural network output back to beamforming weights
-    // This kernel would convert float* output to cuComplex* beamforming weights
-    // apply_neural_output_kernel<<<gridSize, blockSize, 0, stream>>>(d_ml_output_, d_beamforming_weights_, total_elements);
-    
+    float_interleaved_to_cucomplex<<<gridSize, blockSize, 0, stream>>>(d_ml_output_, d_beamforming_weights_, total_elements);
+
     return true;
-#else
+    #else
     printf("TensorRT not available - using fallback\n");
     return false;
-#endif
+    #endif
 }
 
 } // namespace neural_beamforming
+
+// Kernel: Convert float* (real, imag interleaved) to cuComplex*
+__global__ void float_interleaved_to_cucomplex(const float* in, cuComplex* out, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        out[idx] = make_cuComplex(in[2 * idx], in[2 * idx + 1]);
+    }
+}
+// Kernel: Convert cuComplex* to float* (real, imag interleaved)
+__global__ void cucomplex_to_float_interleaved(const cuComplex* in, float* out, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        out[2 * idx]     = cuCrealf(in[idx]);
+        out[2 * idx + 1] = cuCimagf(in[idx]);
+    }
+}

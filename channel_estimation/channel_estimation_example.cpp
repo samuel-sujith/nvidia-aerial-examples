@@ -20,31 +20,46 @@ int main() {
             std::cerr << "Failed to set CUDA device: " << cudaGetErrorString(err) << std::endl;
             return -1;
         }
-        
+
+        // Parse command-line for ML option (very basic)
+        bool use_ml = false;
+        std::string model_path;
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "--ml" && i + 1 < argc) {
+                use_ml = true;
+                model_path = argv[++i];
+            }
+        }
+
         // Create channel estimation parameters
         ChannelEstParams params;
-        params.algorithm = ChannelEstAlgorithm::LEAST_SQUARES;
+        params.algorithm = use_ml ? ChannelEstAlgorithm::ML_TENSORRT : ChannelEstAlgorithm::LEAST_SQUARES;
         params.num_rx_antennas = 1;
         params.num_tx_layers = 1;
         params.num_resource_blocks = 25;  // Smaller for testing
         params.num_ofdm_symbols = 14;
         params.pilot_spacing = 4;
         params.beta_scaling = 1.0f;
-        
+        if (use_ml) {
+            params.model_path = model_path;
+            std::cout << "[INFO] ML model path: " << model_path << std::endl;
+        }
+
         std::cout << "Creating channel estimation pipeline..." << std::endl;
-        
+
         // Create the pipeline
         auto pipeline = std::make_unique<ChannelEstimationPipeline>(
             "test_channel_estimation",
             params
         );
-        
+
         std::cout << "Pipeline ID: " << pipeline->get_pipeline_id() << std::endl;
-        
+
         // Setup the pipeline
         std::cout << "Setting up pipeline..." << std::endl;
         pipeline->setup();
-        
+
         // Create CUDA stream for operations
         cudaStream_t stream;
         err = cudaStreamCreate(&stream);
@@ -52,7 +67,7 @@ int main() {
             std::cerr << "Failed to create CUDA stream: " << cudaGetErrorString(err) << std::endl;
             return -1;
         }
-        
+
         // Warmup the pipeline
         std::cout << "Warming up pipeline..." << std::endl;
         pipeline->warmup(stream);
@@ -124,11 +139,41 @@ int main() {
             return -1;
         }
         
-        // For this example, we would need to create proper PortInfo structures
-        // and call configure_io and execute. This is simplified for demonstration.
-        
-        std::cout << "Channel estimation pipeline created successfully!" << std::endl;
-        std::cout << "Note: Full execution requires proper PortInfo setup" << std::endl;
+        // Set up PortInfo structures for pipeline
+        framework::pipeline::PortInfo rx_port, tx_port, out_port;
+        rx_port.name = "rx_pilots";
+        rx_port.tensors.resize(1);
+        rx_port.tensors[0].device_ptr = d_rx_pilots;
+        tx_port.name = "tx_pilots";
+        tx_port.tensors.resize(1);
+        tx_port.tensors[0].device_ptr = d_tx_pilots;
+        out_port.name = "channel_estimates";
+        out_port.tensors.resize(1);
+        out_port.tensors[0].device_ptr = d_channel_estimates;
+
+        std::vector<framework::pipeline::PortInfo> inputs = {rx_port, tx_port};
+        std::vector<framework::pipeline::PortInfo> outputs = {out_port};
+
+        // Configure pipeline I/O
+        framework::pipeline::DynamicParams dyn_params; // Use default/empty for now
+        pipeline->configure_io(dyn_params, inputs, outputs, stream);
+
+        // Execute the pipeline
+        pipeline->execute_stream(stream);
+
+        // Copy results back to host
+        std::vector<cuComplex> channel_estimates(num_subcarriers * params.num_ofdm_symbols);
+        err = cudaMemcpy(channel_estimates.data(), d_channel_estimates, channel_estimates.size() * sizeof(cuComplex), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to copy channel estimates to host" << std::endl;
+            return -1;
+        }
+
+        std::cout << "Channel estimation pipeline executed successfully!" << std::endl;
+        std::cout << "First 5 channel estimates:" << std::endl;
+        for (int i = 0; i < 5 && i < channel_estimates.size(); ++i) {
+            std::cout << "  [" << i << "]: (" << cuCrealf(channel_estimates[i]) << ", " << cuCimagf(channel_estimates[i]) << ")" << std::endl;
+        }
         
         // Cleanup
         cudaFree(d_rx_pilots);

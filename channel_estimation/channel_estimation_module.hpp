@@ -26,7 +26,8 @@ namespace channel_estimation {
 enum class ChannelEstAlgorithm {
     LEAST_SQUARES,      ///< Least squares estimation
     MMSE,              ///< Minimum mean square error  
-    LINEAR_INTERPOLATION ///< Linear interpolation between pilots
+    LINEAR_INTERPOLATION, ///< Linear interpolation between pilots
+    ML_TENSORRT         ///< Machine learning-based estimation using TensorRT
 };
 
 /// Channel estimation parameters
@@ -39,6 +40,13 @@ struct ChannelEstParams {
     int pilot_spacing{4};          ///< Pilot symbol spacing in frequency
     float noise_variance{0.1f};    ///< Estimated noise variance for MMSE
     float beta_scaling{1.0f};      ///< Channel scaling factor
+
+    // ML-based estimation options
+    std::string model_path;        ///< Path to TensorRT engine/model file
+    int max_batch_size{32};        ///< Maximum batch size for inference
+    bool use_fp16{true};           ///< Use FP16 precision for inference
+    int ml_input_size{0};          ///< ML model input size
+    int ml_output_size{0};         ///< ML model output size
 };
 
 /// GPU kernel descriptor for channel estimation

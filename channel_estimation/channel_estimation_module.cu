@@ -1,3 +1,65 @@
+// Configure IO for ChannelEstimator (updates descriptor and copies to GPU)
+void ChannelEstimator::configure_io(
+    const framework::pipeline::DynamicParams& /*params*/,
+    cudaStream_t stream
+) {
+    // Update descriptor with current tensor pointers
+    h_descriptor_.rx_pilots = current_rx_pilots_;
+    h_descriptor_.tx_pilots = current_tx_pilots_;
+    h_descriptor_.channel_estimates = current_channel_estimates_;
+    h_descriptor_.params = &params_;
+    h_descriptor_.num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
+    h_descriptor_.num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
+
+    // Copy descriptor to GPU
+    cudaError_t err = cudaMemcpyAsync(
+        d_descriptor_,
+        &h_descriptor_,
+        sizeof(ChannelEstDescriptor),
+        cudaMemcpyHostToDevice,
+        stream
+    );
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to copy descriptor to GPU");
+    }
+}
+// Setup port info for MLChannelEstimatorTRT and ChannelEstimator (like neural_beamforming)
+void ChannelEstimator::setup_port_info() {
+    using namespace framework::tensor;
+
+    // Setup input ports
+    input_ports_.resize(2);
+
+    // Input port 0: rx_pilots
+    input_ports_[0].name = "rx_pilots";
+    input_ports_[0].tensors.resize(1);
+    input_ports_[0].tensors[0].tensor_info = TensorInfo(
+        NvDataType::TensorC32F,
+        std::vector<std::size_t>{static_cast<std::size_t>(params_.num_resource_blocks * 12 / params_.pilot_spacing)}
+    );
+
+    // Input port 1: tx_pilots
+    input_ports_[1].name = "tx_pilots";
+    input_ports_[1].tensors.resize(1);
+    input_ports_[1].tensors[0].tensor_info = TensorInfo(
+        NvDataType::TensorC32F,
+        std::vector<std::size_t>{static_cast<std::size_t>(params_.num_resource_blocks * 12 / params_.pilot_spacing)}
+    );
+
+    // Setup output ports
+    output_ports_.resize(1);
+
+    // Output port 0: channel_estimates
+    output_ports_[0].name = "channel_estimates";
+    output_ports_[0].tensors.resize(1);
+    output_ports_[0].tensors[0].tensor_info = TensorInfo(
+        NvDataType::TensorC32F,
+        std::vector<std::size_t>{
+            static_cast<std::size_t>(params_.num_resource_blocks * 12),
+            static_cast<std::size_t>(params_.num_ofdm_symbols)
+        }
+    );
+}
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
