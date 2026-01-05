@@ -24,6 +24,9 @@ private:
     int output_size_;
     bool use_fp16_;
     int max_batch_size_;
+#ifdef TENSORRT_AVAILABLE
+    nvinfer1::IExecutionContext* context_{nullptr};
+#endif
     // TensorRT engine/context handles would go here
 };
 
