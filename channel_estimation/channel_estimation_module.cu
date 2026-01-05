@@ -236,7 +236,13 @@ std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const
 void ChannelEstimator::execute(cudaStream_t stream) {
     cudaError_t err = launch_channel_estimation_kernel(stream);
     if (err != cudaSuccess) {
+        std::cerr << "[ERROR] Channel estimation kernel launch failed: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Channel estimation kernel launch failed");
+    }
+    err = cudaStreamSynchronize(stream);
+    if (err != cudaSuccess) {
+        std::cerr << "[ERROR] cudaStreamSynchronize failed after kernel: " << cudaGetErrorString(err) << std::endl;
+        throw std::runtime_error("cudaStreamSynchronize failed after kernel");
     }
 }
 

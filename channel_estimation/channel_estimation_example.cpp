@@ -169,7 +169,10 @@ int main(int argc, char** argv) {
         std::vector<cuComplex> channel_estimates(num_subcarriers * params.num_ofdm_symbols);
         err = cudaMemcpy(channel_estimates.data(), d_channel_estimates, channel_estimates.size() * sizeof(cuComplex), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess) {
-            std::cerr << "Failed to copy channel estimates to host" << std::endl;
+            std::cerr << "Failed to copy channel estimates to host: " << cudaGetErrorString(err) << std::endl;
+            std::cerr << "  host ptr: " << static_cast<const void*>(channel_estimates.data())
+                      << ", device ptr: " << static_cast<const void*>(d_channel_estimates)
+                      << ", size: " << (channel_estimates.size() * sizeof(cuComplex)) << std::endl;
             return -1;
         }
 
