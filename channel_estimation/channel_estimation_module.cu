@@ -227,12 +227,12 @@ void ChannelEstimator::allocate_gpu_memory() {
 }
 
 void ChannelEstimator::deallocate_gpu_memory() {
-    if (d_params_) cudaFree(d_params_);
-    if (d_descriptor_) cudaFree(d_descriptor_);
-    if (d_pilot_symbols_) cudaFree(d_pilot_symbols_);
-    if (d_pilot_estimates_) cudaFree(d_pilot_estimates_);
-    if (d_channel_estimates_) cudaFree(d_channel_estimates_);
-    d_params_ = d_descriptor_ = d_pilot_symbols_ = d_pilot_estimates_ = d_channel_estimates_ = nullptr;
+    // Individual frees to avoid type mismatch
+    if (d_params_) { cudaFree(d_params_); d_params_ = nullptr; }
+    if (d_descriptor_) { cudaFree(d_descriptor_); d_descriptor_ = nullptr; }
+    if (d_pilot_symbols_) { cudaFree(d_pilot_symbols_); d_pilot_symbols_ = nullptr; }
+    if (d_pilot_estimates_) { cudaFree(d_pilot_estimates_); d_pilot_estimates_ = nullptr; }
+    if (d_channel_estimates_) { cudaFree(d_channel_estimates_); d_channel_estimates_ = nullptr; }
 }
 
 cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stream) {
