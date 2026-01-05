@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#include <cstdio>
 
 namespace channel_estimation {
 
@@ -37,46 +38,27 @@ __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
 /// CUDA kernel for linear interpolation between pilots
 __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    
     if (tid >= desc->num_data_subcarriers) return;
-    
-    // Defensive: check pointers are not null
-    if (!desc->channel_estimates) return;
-    
     int pilot_spacing = desc->params->pilot_spacing;
     int pilot_before = (tid / pilot_spacing) * pilot_spacing;
     int pilot_after = pilot_before + pilot_spacing;
-    
-    // Defensive bounds checks
     if (pilot_before < 0) pilot_before = 0;
     if (pilot_before >= desc->num_pilots) pilot_before = desc->num_pilots - 1;
     if (pilot_after < 0) pilot_after = 0;
     if (pilot_after >= desc->num_pilots) pilot_after = desc->num_pilots - 1;
-    
-    // Find surrounding pilot indices
-    pilot_before = (tid / pilot_spacing) * pilot_spacing;
-    pilot_after = pilot_before + pilot_spacing;
-    
-    // Boundary checks
-    if (pilot_after >= desc->num_pilots) {
-        pilot_after = pilot_before;
+    if (tid < 10) {
+        printf("[INTERP KERNEL] tid=%d, pilot_before=%d, pilot_after=%d\n", tid, pilot_before, pilot_after);
     }
-    
     if (pilot_before == pilot_after) {
-        // Use nearest pilot
         desc->channel_estimates[tid] = desc->channel_estimates[pilot_before];
     } else {
-        // Linear interpolation
         float alpha = (float)(tid - pilot_before) / pilot_spacing;
-        
         cuComplex h_before = desc->channel_estimates[pilot_before];
         cuComplex h_after = desc->channel_estimates[pilot_after];
-        
         cuComplex interpolated = make_cuComplex(
             (1.0f - alpha) * cuCrealf(h_before) + alpha * cuCrealf(h_after),
             (1.0f - alpha) * cuCimagf(h_before) + alpha * cuCimagf(h_after)
         );
-        
         desc->channel_estimates[tid] = interpolated;
     }
 }
@@ -173,48 +155,6 @@ void ChannelEstimator::configure_io(
     }
 }
 
-std::vector<framework::tensor::TensorInfo> ChannelEstimator::get_input_tensor_info(std::string_view port_name) const {
-    for (const auto& port : input_ports_) {
-        if (port.name == port_name) {
-            std::vector<framework::tensor::TensorInfo> result;
-            for (const auto& tensor : port.tensors) {
-                result.push_back(tensor.tensor_info);
-            }
-            return result;
-        }
-    }
-    return {};
-}
-
-std::vector<framework::tensor::TensorInfo> ChannelEstimator::get_output_tensor_info(std::string_view port_name) const {
-    for (const auto& port : output_ports_) {
-        if (port.name == port_name) {
-            std::vector<framework::tensor::TensorInfo> result;
-            for (const auto& tensor : port.tensors) {
-                result.push_back(tensor.tensor_info);
-            }
-            return result;
-        }
-    }
-    return {};
-}
-
-std::vector<std::string> ChannelEstimator::get_input_port_names() const {
-    std::vector<std::string> names;
-    for (const auto& port : input_ports_) {
-        names.push_back(port.name);
-    }
-    return names;
-}
-
-std::vector<std::string> ChannelEstimator::get_output_port_names() const {
-    std::vector<std::string> names;
-    for (const auto& port : output_ports_) {
-        names.push_back(port.name);
-    }
-    return names;
-}
-
 void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
     // Accept both input and output ports in the vector
     for (const auto& port : inputs) {
@@ -249,7 +189,13 @@ std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const
 }
 
 void ChannelEstimator::execute(cudaStream_t stream) {
-    cudaError_t err = launch_channel_estimation_kernel(stream);
+    // Zero-initialize the output buffer to avoid uninitialized reads
+    cudaError_t err = cudaMemset(current_channel_estimates_, 0, params_.num_resource_blocks * 12 * params_.num_ofdm_symbols * sizeof(cuComplex));
+    if (err != cudaSuccess) {
+        std::cerr << "[ERROR] cudaMemset failed: " << cudaGetErrorString(err) << std::endl;
+        throw std::runtime_error("cudaMemset failed");
+    }
+    err = launch_channel_estimation_kernel(stream);
     if (err != cudaSuccess) {
         std::cerr << "[ERROR] Channel estimation kernel launch failed: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Channel estimation kernel launch failed");
