@@ -806,7 +806,7 @@ bool NeuralBeamformer::run_neural_inference(cudaStream_t stream) {
     // Launch kernel to convert cuComplex* to float* (real, imag interleaved)
     dim3 blockSize(256);
     dim3 gridSize((total_elements + blockSize.x - 1) / blockSize.x);
-    cucomplex_to_float_interleaved<<<gridSize, blockSize, 0, stream>>>(d_channel_matrix_, d_ml_input_, total_elements);
+    neural_beamforming::cucomplex_to_float_interleaved<<<gridSize, blockSize, 0, stream>>>(d_channel_matrix_, d_ml_input_, total_elements);
 
     // Set up TensorRT explicit I/O bindings
     trt_context_->setTensorAddress("input", d_ml_input_);
@@ -820,7 +820,7 @@ bool NeuralBeamformer::run_neural_inference(cudaStream_t stream) {
     }
 
     // Convert neural network output back to beamforming weights
-    float_interleaved_to_cucomplex<<<gridSize, blockSize, 0, stream>>>(d_ml_output_, d_beamforming_weights_, total_elements);
+    neural_beamforming::float_interleaved_to_cucomplex<<<gridSize, blockSize, 0, stream>>>(d_ml_output_, d_beamforming_weights_, total_elements);
 
     return true;
     #else
