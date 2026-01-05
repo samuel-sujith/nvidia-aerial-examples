@@ -15,6 +15,10 @@ __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     
     if (tid >= desc->num_pilots) return;
     
+    // Print descriptor values before kernel launch
+    printf("[KERNEL LAUNCH DEBUG] desc->rx_pilots=%p, desc->tx_pilots=%p, desc->channel_estimates=%p, num_pilots=%d, num_data_subcarriers=%d\n",
+           (void*)desc->rx_pilots, (void*)desc->tx_pilots, (void*)desc->channel_estimates, desc->num_pilots, desc->num_data_subcarriers);
+
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
     
@@ -35,6 +39,9 @@ __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc)
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (tid >= desc->num_data_subcarriers) return;
+    
+    // Defensive: check pointers are not null
+    if (!desc->channel_estimates) return;
     
     int pilot_spacing = desc->params->pilot_spacing;
     
