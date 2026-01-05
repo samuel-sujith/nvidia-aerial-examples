@@ -14,8 +14,12 @@ namespace channel_estimation {
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     // Force device-side printf for every thread before any memory access
-    printf("[LS KERNEL] tid=%d, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n", tid, desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
+    //printf("[LS KERNEL] tid=%d, num_pilots=%d, rx_pilots=%p, tx_pilots=%p, pilot_estimates=%p\n", tid, desc->num_pilots, desc->rx_pilots, desc->tx_pilots, desc->pilot_estimates);
+    //if (tid >= desc->num_pilots) return;
     if (tid >= desc->num_pilots) return;
+    if (tid < 10) {
+        printf("[LS KERNEL] tid=%d, num_pilots=%d, ...");
+    }
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
     cuComplex channel_est = cuCdivf(rx_pilot, tx_pilot);
@@ -297,7 +301,7 @@ void ChannelEstimator::deallocate_gpu_memory() {
 
 cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stream) {
     int num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
-    dim3 blockSize(256);
+    dim3 blockSize(32);
     dim3 gridSize((num_pilots + blockSize.x - 1) / blockSize.x);
     ls_channel_estimation_kernel<<<gridSize, blockSize, 0, stream>>>(d_descriptor_);
     cudaError_t err = cudaGetLastError();
