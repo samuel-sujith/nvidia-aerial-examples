@@ -81,6 +81,8 @@ void ChannelEstimationPipeline::configure_io(
     for (const auto& p : external_inputs) all_ports.push_back(p);
     for (const auto& p : external_outputs) all_ports.push_back(p);
     channel_estimator_->set_inputs(all_ports);
+    // Call configure_io again so the descriptor is updated with the correct output pointer
+    channel_estimator_->configure_io(params, stream);
 }
 
 void ChannelEstimationPipeline::execute_stream(cudaStream_t stream) {
