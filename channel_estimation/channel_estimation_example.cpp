@@ -126,6 +126,12 @@ int main(int argc, char** argv) {
             return -1;
         }
         
+        // Sanity check: ensure device pointers are different
+        if (d_rx_pilots == d_tx_pilots) {
+            std::cerr << "[ERROR] d_rx_pilots and d_tx_pilots point to the same device memory!" << std::endl;
+            return -1;
+        }
+        
         // Copy data to device
         err = cudaMemcpy(d_rx_pilots, rx_pilots.data(), num_pilots * sizeof(cuComplex), cudaMemcpyHostToDevice);
         if (err != cudaSuccess) {
