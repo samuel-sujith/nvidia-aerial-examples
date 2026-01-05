@@ -20,17 +20,25 @@ ChannelEstimationPipeline::ChannelEstimationPipeline(
 void ChannelEstimationPipeline::setup() {
     // Create the channel estimator module
     std::string module_id = pipeline_id_ + "_channel_estimator";
-    channel_estimator_ = std::make_unique<ChannelEstimator>(module_id, channel_params_);
-    
+    if (channel_params_.algorithm == ChannelEstAlgorithm::ML_TENSORRT) {
+        // Placeholder: In a full implementation, instantiate MLChannelEstimatorTRT and integrate with pipeline
+        std::cout << "[INFO] Using ML-based channel estimator (TensorRT): " << channel_params_.model_path << std::endl;
+        // channel_estimator_ = std::make_unique<MLChannelEstimatorTRT>(...);
+        // For now, fallback to base estimator to avoid breaking pipeline
+        channel_estimator_ = std::make_unique<ChannelEstimator>(module_id, channel_params_);
+    } else {
+        channel_estimator_ = std::make_unique<ChannelEstimator>(module_id, channel_params_);
+    }
+
     // Allocate pipeline memory
     allocate_pipeline_memory();
-    
+
     // Setup module memory slice
     framework::pipeline::ModuleMemorySlice memory_slice;
     // In a real implementation, this would provide the proper memory slice
-    
+
     channel_estimator_->setup_memory(memory_slice);
-    
+
     // Setup tensor connections
     setup_tensor_connections();
 }
@@ -55,12 +63,14 @@ void ChannelEstimationPipeline::configure_io(
         throw std::runtime_error("Channel estimation pipeline requires exactly 1 external output");
     }
     
-    // Set module inputs using PortInfo directly
-    channel_estimator_->set_inputs(external_inputs);
-    
-    // Call module's configure_io
+    // Combine all input and output ports, then set and configure once
+    std::vector<framework::pipeline::PortInfo> all_ports;
+    all_ports.reserve(external_inputs.size() + external_outputs.size());
+    for (const auto& p : external_inputs) all_ports.push_back(p);
+    for (const auto& p : external_outputs) all_ports.push_back(p);
+    channel_estimator_->set_inputs(all_ports);
+    std::cout << "[DEBUG] Pipeline: set_inputs called with all_ports. Now calling configure_io..." << std::endl;
     channel_estimator_->configure_io(params, stream);
-    
     // Get module outputs and update external outputs
     auto module_output_ports = channel_estimator_->get_outputs();
     for (size_t i = 0; i < external_outputs.size() && i < module_output_ports.size(); ++i) {

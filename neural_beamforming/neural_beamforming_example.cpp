@@ -28,6 +28,7 @@ void print_usage(const char* program_name) {
               << "  --test-gain            Run beamforming gain test\n"
               << "  --test-sinr            Test SINR performance\n"
               << "  --steering-vector      Display steering vector pattern\n"
+              << "  --model <path>    Path to the neural network model\n"
               << "  --help                 Show this help message\n";
 }
 
@@ -343,6 +344,7 @@ int main(int argc, char* argv[]) {
     bool test_gain = false;
     bool test_sinr = false;
     bool show_steering = false;
+    std::string model_path;
     
     // Parse command line arguments
     for (int i = 1; i < argc; ++i) {
@@ -367,6 +369,8 @@ int main(int argc, char* argv[]) {
             test_sinr = true;
         } else if (arg == "--steering-vector") {
             show_steering = true;
+        } else if (arg == "--model" && i + 1 < argc) {
+            model_path = argv[++i];
         } else {
             std::cerr << "Unknown argument: " << arg << std::endl;
             print_usage(argv[0]);
@@ -395,6 +399,9 @@ int main(int argc, char* argv[]) {
         params.regularization_factor = 1e-6f;
         params.noise_power = 0.1f;
         params.enable_calibration = true;
+        if (!model_path.empty()) {
+            params.model_path = model_path;
+        }
         
         neural_beamforming::NeuralBeamformingPipeline::PipelineConfig config;
         config.module_id = "1001";
