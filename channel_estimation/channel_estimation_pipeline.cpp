@@ -63,17 +63,24 @@ void ChannelEstimationPipeline::configure_io(
         throw std::runtime_error("Channel estimation pipeline requires exactly 1 external output");
     }
     
-    // Set module inputs using PortInfo directly
+    // Set module inputs using PortInfo directly (inputs only)
     channel_estimator_->set_inputs(external_inputs);
-    
+
     // Call module's configure_io
     channel_estimator_->configure_io(params, stream);
-    
+
     // Get module outputs and update external outputs
     auto module_output_ports = channel_estimator_->get_outputs();
     for (size_t i = 0; i < external_outputs.size() && i < module_output_ports.size(); ++i) {
         external_outputs[i] = module_output_ports[i];
     }
+
+    // Now set inputs again, but include the output PortInfo so the module can see the output buffer
+    std::vector<framework::pipeline::PortInfo> all_ports;
+    all_ports.reserve(external_inputs.size() + external_outputs.size());
+    for (const auto& p : external_inputs) all_ports.push_back(p);
+    for (const auto& p : external_outputs) all_ports.push_back(p);
+    channel_estimator_->set_inputs(all_ports);
 }
 
 void ChannelEstimationPipeline::execute_stream(cudaStream_t stream) {
