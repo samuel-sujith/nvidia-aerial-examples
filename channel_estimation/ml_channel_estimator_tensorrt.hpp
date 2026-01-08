@@ -28,13 +28,14 @@
 namespace channel_estimation {
 
 class MLChannelEstimatorTRT final : public IChannelEstimator, public framework::pipeline::IModule,
-                                        // Cleanup TensorRT and device resources
-                                        void cleanup_tensorrt_resources();
                                     public framework::pipeline::IAllocationInfoProvider,
                                     public framework::pipeline::IStreamExecutor {
 public:
     MLChannelEstimatorTRT(const std::string& module_id, const ChannelEstParams& params);
     ~MLChannelEstimatorTRT() override;
+
+    // Cleanup TensorRT and device resources
+    void cleanup_tensorrt_resources();
 
     // IModule interface implementation
     [[nodiscard]] std::string_view get_type_id() const override { return "ml_channel_estimator_trt"; }
