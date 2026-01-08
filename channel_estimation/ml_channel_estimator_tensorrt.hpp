@@ -1,9 +1,17 @@
+    // TensorRT engine/model initialization
+    bool initialize_tensorrt_engine();
 
 #ifndef ML_CHANNEL_ESTIMATOR_TENSORRT_HPP
 #define ML_CHANNEL_ESTIMATOR_TENSORRT_HPP
 
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#ifdef TENSORRT_AVAILABLE
+#include <NvInfer.h>
+#include <NvInferRuntime.h>
+#include <fstream>
+#include <iostream>
+#endif
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,6 +28,8 @@
 namespace channel_estimation {
 
 class MLChannelEstimatorTRT final : public IChannelEstimator, public framework::pipeline::IModule,
+                                        // Cleanup TensorRT and device resources
+                                        void cleanup_tensorrt_resources();
                                     public framework::pipeline::IAllocationInfoProvider,
                                     public framework::pipeline::IStreamExecutor {
 public:
@@ -62,7 +72,6 @@ public:
     // IStreamExecutor interface
     void execute(cudaStream_t stream) override;
 
-private:
     std::string module_id_;
     ChannelEstParams params_;
 
@@ -76,8 +85,15 @@ private:
     int output_size_;
     bool use_fp16_;
     int max_batch_size_;
+
 #ifdef TENSORRT_AVAILABLE
-    nvinfer1::IExecutionContext* context_{nullptr};
+    nvinfer1::IRuntime* trt_runtime_{nullptr};           ///< TensorRT runtime
+    nvinfer1::ICudaEngine* trt_engine_{nullptr};         ///< TensorRT inference engine
+    nvinfer1::IExecutionContext* trt_context_{nullptr};  ///< TensorRT execution context
+#else
+    void* trt_runtime_{nullptr};
+    void* trt_engine_{nullptr};         
+    void* trt_context_{nullptr};        
 #endif
 
     // Device memory pointers (for output, etc.)
@@ -91,6 +107,9 @@ private:
     void allocate_gpu_memory();
     void deallocate_gpu_memory();
     void setup_port_info();
+
+    // Inference utility
+    std::vector<float> infer(const std::vector<float>& input);
 };
 
 } // namespace channel_estimation

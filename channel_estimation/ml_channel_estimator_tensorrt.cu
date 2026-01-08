@@ -5,6 +5,24 @@
 #include <cuda_runtime.h>
 #include <vector>
 
+#ifdef TENSORRT_AVAILABLE
+#include <NvInfer.h>
+#include <NvInferRuntime.h>
+#include <fstream>
+
+// TensorRT Logger
+class Logger : public nvinfer1::ILogger {
+    void log(Severity severity, const char* msg) noexcept override {
+        // Only print warnings and errors
+        if (severity <= Severity::kWARNING) {
+            std::cout << "TensorRT: " << msg << std::endl;
+        }
+    }
+};
+
+static Logger gLogger;
+#endif
+
 namespace channel_estimation {
 
 
@@ -17,12 +35,100 @@ MLChannelEstimatorTRT::MLChannelEstimatorTRT(const std::string& module_id, const
       max_batch_size_(params.max_batch_size)
 {
     setup_port_info();
-    // TODO: Load TensorRT engine/model here
+    // Initialize TensorRT engine if ML algorithm is selected and model path is provided
+    if (params_.algorithm == ChannelEstAlgorithm::ML_TENSORRT && !params_.model_path.empty()) {
+        if (!initialize_tensorrt_engine()) {
+            std::cerr << "[ERROR] Failed to initialize TensorRT engine for MLChannelEstimatorTRT" << std::endl;
+        }
+    }
 }
+
+// TensorRT engine/model initialization
+bool MLChannelEstimatorTRT::initialize_tensorrt_engine() {
+#ifdef TENSORRT_AVAILABLE
+    if (model_path_.empty()) {
+        std::cerr << "[WARN] No model path specified for ML channel estimator" << std::endl;
+        return false;
+    }
+    try {
+        // Create TensorRT runtime (logger should be defined elsewhere or use default)
+        static nvinfer1::ILogger* gLogger = nullptr;
+        if (!gLogger) {
+            static class : public nvinfer1::ILogger {
+                void log(Severity severity, const char* msg) noexcept override {
+                    if (severity <= Severity::kWARNING) {
+                        std::cout << "TensorRT: " << msg << std::endl;
+                    }
+                }
+            } loggerInstance;
+            gLogger = &loggerInstance;
+        }
+        auto runtime = nvinfer1::createInferRuntime(*gLogger);
+        if (!runtime) {
+            std::cerr << "[ERROR] Failed to create TensorRT runtime" << std::endl;
+            return false;
+        }
+        // Load engine from file
+        std::ifstream file(model_path_, std::ios::binary);
+        if (!file.good()) {
+            std::cerr << "[ERROR] Failed to open TensorRT engine file: " << model_path_ << std::endl;
+            return false;
+        }
+        file.seekg(0, std::ios::end);
+        size_t size = file.tellg();
+        file.seekg(0, std::ios::beg);
+        std::vector<char> engine_data(size);
+        file.read(engine_data.data(), size);
+        file.close();
+        auto engine = runtime->deserializeCudaEngine(engine_data.data(), size);
+        if (!engine) {
+            std::cerr << "[ERROR] Failed to deserialize TensorRT engine" << std::endl;
+            return false;
+        }
+        context_ = engine->createExecutionContext();
+        if (!context_) {
+            std::cerr << "[ERROR] Failed to create TensorRT execution context" << std::endl;
+            return false;
+        }
+        std::cout << "[INFO] TensorRT engine initialized successfully for ML channel estimator" << std::endl;
+        // Note: engine and runtime should be managed (deleted) in destructor if needed
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[EXCEPTION] During TensorRT initialization: " << e.what() << std::endl;
+        return false;
+    }
+#else
+    std::cerr << "[WARN] TensorRT not available - ML channel estimator will not use TensorRT" << std::endl;
+    return false;
+#endif
+}
+}
+
 
 MLChannelEstimatorTRT::~MLChannelEstimatorTRT() {
     deallocate_gpu_memory();
-    // TODO: Release TensorRT resources
+    cleanup_tensorrt_resources();
+}
+
+void MLChannelEstimatorTRT::cleanup_tensorrt_resources() {
+#ifdef TENSORRT_AVAILABLE
+    if (trt_context_) {
+        delete trt_context_;
+        trt_context_ = nullptr;
+    }
+    if (trt_engine_) {
+        delete trt_engine_;
+        trt_engine_ = nullptr;
+    }
+    if (trt_runtime_) {
+        delete trt_runtime_;
+        trt_runtime_ = nullptr;
+    }
+#else
+    trt_context_ = nullptr;
+    trt_engine_ = nullptr;
+    trt_runtime_ = nullptr;
+#endif
 }
 
 void MLChannelEstimatorTRT::setup_port_info() {
