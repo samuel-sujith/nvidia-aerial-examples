@@ -97,12 +97,12 @@ bool MLChannelEstimatorTRT::initialize_tensorrt_engine() {
         std::cerr << "[EXCEPTION] During TensorRT initialization: " << e.what() << std::endl;
         return false;
     }
-#else
+#else 
     std::cerr << "[WARN] TensorRT not available - ML channel estimator will not use TensorRT" << std::endl;
     return false;
 #endif
 }
-}
+
 
 
 MLChannelEstimatorTRT::~MLChannelEstimatorTRT() {
