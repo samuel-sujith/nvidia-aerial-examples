@@ -16,6 +16,7 @@
 #include "tensor/tensor_info.hpp"
 
 #include "channel_estimation_module.hpp"
+#include "ml_channel_estimator_tensorrt.hpp"
 
 namespace channel_estimation {
 
@@ -74,15 +75,10 @@ public:
 private:
     std::string pipeline_id_;
     ChannelEstParams channel_params_;
-    std::unique_ptr<ChannelEstimator> channel_estimator_;
-    
-    // Internal tensor connections
+    std::unique_ptr<IChannelEstimator> channel_estimator_;
     std::vector<framework::tensor::TensorInfo> internal_tensors_;
-    
-    // Memory management
     void* device_memory_{nullptr};
     std::size_t memory_size_{0};
-    
     void allocate_pipeline_memory();
     void setup_tensor_connections();
 };

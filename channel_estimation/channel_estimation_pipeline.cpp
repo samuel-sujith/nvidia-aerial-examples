@@ -21,11 +21,8 @@ void ChannelEstimationPipeline::setup() {
     // Create the channel estimator module
     std::string module_id = pipeline_id_ + "_channel_estimator";
     if (channel_params_.algorithm == ChannelEstAlgorithm::ML_TENSORRT) {
-        // Placeholder: In a full implementation, instantiate MLChannelEstimatorTRT and integrate with pipeline
         std::cout << "[INFO] Using ML-based channel estimator (TensorRT): " << channel_params_.model_path << std::endl;
-        // channel_estimator_ = std::make_unique<MLChannelEstimatorTRT>(...);
-        // For now, fallback to base estimator to avoid breaking pipeline
-        channel_estimator_ = std::make_unique<ChannelEstimator>(module_id, channel_params_);
+        channel_estimator_ = std::make_unique<MLChannelEstimatorTRT>(module_id, channel_params_);
     } else {
         channel_estimator_ = std::make_unique<ChannelEstimator>(module_id, channel_params_);
     }

@@ -382,3 +382,17 @@ First 5 channel estimates:
   [4]: (0.911829, 0.238206)
 Test completed successfully!
 ```
+
+## Machine Learning (ML) Channel Estimation: Training and Usage
+
+This example supports ML-based channel estimation using a neural network model deployed with NVIDIA TensorRT.
+
+- **How to train a model:**
+  1. Prepare (received pilots, true channel) data.
+  2. Train a neural network (e.g., in PyTorch or TensorFlow) to map pilots to channel estimates.
+  3. Export the model to ONNX, then convert to TensorRT engine (`.engine` file) using `trtexec` or TensorRT Python API.
+- **How to use in this example:**
+  1. Build with TensorRT support.
+  2. Run with `--algorithm ml_tensorrt --model_path /path/to/model.engine` and set other ML parameters as needed.
+
+See [README-ML.md](./README-ML.md) for a step-by-step guide on training and deploying your own ML channel estimator.

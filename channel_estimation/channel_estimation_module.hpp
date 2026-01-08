@@ -20,6 +20,25 @@
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "tensor/data_types.hpp"
+#include <span>
+
+// Abstract base interface for channel estimators
+class IChannelEstimator {
+public:
+    virtual ~IChannelEstimator() = default;
+    virtual void setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) = 0;
+    virtual void warmup(cudaStream_t stream) = 0;
+    virtual void configure_io(const framework::pipeline::DynamicParams& params, cudaStream_t stream) = 0;
+    virtual std::vector<framework::tensor::TensorInfo> get_input_tensor_info(std::string_view port_name) const = 0;
+    virtual std::vector<framework::tensor::TensorInfo> get_output_tensor_info(std::string_view port_name) const = 0;
+    virtual std::vector<std::string> get_input_port_names() const = 0;
+    virtual std::vector<std::string> get_output_port_names() const = 0;
+    virtual framework::pipeline::ModuleMemoryRequirements get_requirements() const = 0;
+    virtual framework::pipeline::OutputPortMemoryCharacteristics get_output_memory_characteristics(std::string_view port_name) const = 0;
+    virtual void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) = 0;
+    virtual std::vector<framework::pipeline::PortInfo> get_outputs() const = 0;
+    virtual void execute(cudaStream_t stream) = 0;
+};
 
 namespace channel_estimation {
 
@@ -62,7 +81,7 @@ struct ChannelEstDescriptor {
 };
 
 /// Channel estimator module implementing the framework interface
-class ChannelEstimator final : public framework::pipeline::IModule, 
+class ChannelEstimator final : public IChannelEstimator, public framework::pipeline::IModule, 
                               public framework::pipeline::IAllocationInfoProvider,
                               public framework::pipeline::IStreamExecutor {
 public:
