@@ -85,8 +85,8 @@ bool MLChannelEstimatorTRT::initialize_tensorrt_engine() {
             std::cerr << "[ERROR] Failed to deserialize TensorRT engine" << std::endl;
             return false;
         }
-        context_ = engine->createExecutionContext();
-        if (!context_) {
+        trt_context_ = trt_engine_->createExecutionContext();
+        if (!trt_context_) {
             std::cerr << "[ERROR] Failed to create TensorRT execution context" << std::endl;
             return false;
         }
@@ -321,11 +321,11 @@ std::vector<float> MLChannelEstimatorTRT::infer(const std::vector<float>& input)
     if (err != cudaSuccess) { cudaFree(d_input); cudaFree(d_output); return {}; }
 
     // Set up TensorRT explicit I/O bindings (assumes input/output names are "input" and "output")
-    context_->setTensorAddress("input", d_input);
-    context_->setTensorAddress("output", d_output);
+    trt_context_->setTensorAddress("input", d_input);
+    trt_context_->setTensorAddress("output", d_output);
 
     // Run inference (no batch, default stream)
-    bool success = context_->enqueueV3(0); // 0 = default stream
+    bool success = trt_context_->enqueueV3(0); // 0 = default stream
     std::vector<float> output;
     if (success) {
         output.resize(output_size);

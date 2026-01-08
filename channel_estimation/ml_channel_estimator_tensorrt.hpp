@@ -36,6 +36,8 @@ public:
 
     // Cleanup TensorRT and device resources
     void cleanup_tensorrt_resources();
+    // TensorRT engine/model initialization
+    bool initialize_tensorrt_engine();
 
     // IModule interface implementation
     [[nodiscard]] std::string_view get_type_id() const override { return "ml_channel_estimator_trt"; }
