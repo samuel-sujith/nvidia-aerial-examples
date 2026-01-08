@@ -1,60 +1,4 @@
-// ml_channel_estimator_tensorrt.cu
-// Implementation of the infer method for MLChannelEstimatorTRT
 
-#include "ml_channel_estimator_tensorrt.hpp"
-#include <cuda_runtime.h>
-#include <vector>
-
-#ifdef TENSORRT_AVAILABLE
-#include <NvInfer.h>
-#include <NvInferRuntime.h>
-#include <fstream>
-
-// TensorRT Logger
-class Logger : public nvinfer1::ILogger {
-    void log(Severity severity, const char* msg) noexcept override {
-        // Only print warnings and errors
-        if (severity <= Severity::kWARNING) {
-            std::cout << "TensorRT: " << msg << std::endl;
-        }
-    }
-};
-
-static Logger gLogger;
-#endif
-
-namespace channel_estimation {
-
-
-MLChannelEstimatorTRT::MLChannelEstimatorTRT(const std::string& module_id, const ChannelEstParams& params)
-    : module_id_(module_id), params_(params),
-      model_path_(params.model_path),
-      input_size_(params.ml_input_size),
-      output_size_(params.ml_output_size),
-      use_fp16_(params.use_fp16),
-      max_batch_size_(params.max_batch_size)
-{
-    setup_port_info();
-    // Initialize TensorRT engine if ML algorithm is selected and model path is provided
-    if (params_.algorithm == ChannelEstAlgorithm::ML_TENSORRT && !params_.model_path.empty()) {
-        if (!initialize_tensorrt_engine()) {
-            std::cerr << "[ERROR] Failed to initialize TensorRT engine for MLChannelEstimatorTRT" << std::endl;
-        }
-    }
-}
-
-// TensorRT engine/model initialization
-bool MLChannelEstimatorTRT::initialize_tensorrt_engine() {
-#ifdef TENSORRT_AVAILABLE
-    if (model_path_.empty()) {
-        std::cerr << "[WARN] No model path specified for ML channel estimator" << std::endl;
-        return false;
-    }
-    try {
-        // Create TensorRT runtime (logger should be defined elsewhere or use default)
-        static nvinfer1::ILogger* gLogger = nullptr;
-        if (!gLogger) {
-            static class : public nvinfer1::ILogger {
                 void log(Severity severity, const char* msg) noexcept override {
                     if (severity <= Severity::kWARNING) {
                         std::cout << "TensorRT: " << msg << std::endl;
@@ -321,11 +265,11 @@ std::vector<float> MLChannelEstimatorTRT::infer(const std::vector<float>& input)
     if (err != cudaSuccess) { cudaFree(d_input); cudaFree(d_output); return {}; }
 
     // Set up TensorRT explicit I/O bindings (assumes input/output names are "input" and "output")
-    context_->setTensorAddress("input", d_input);
-    context_->setTensorAddress("output", d_output);
+    trt_context_->setTensorAddress("input", d_input);
+    trt_context_->setTensorAddress("output", d_output);
 
     // Run inference (no batch, default stream)
-    bool success = context_->enqueueV3(0); // 0 = default stream
+    bool success = trt_context_->enqueueV3(0); // 0 = default stream
     std::vector<float> output;
     if (success) {
         output.resize(output_size);
