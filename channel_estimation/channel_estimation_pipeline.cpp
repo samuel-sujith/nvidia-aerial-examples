@@ -22,13 +22,7 @@ void ChannelEstimationPipeline::setup() {
     std::string module_id = pipeline_id_ + "_channel_estimator";
     if (channel_params_.algorithm == ChannelEstAlgorithm::ML_TENSORRT) {
         std::cout << "[INFO] Using ML-based channel estimator (TensorRT): " << channel_params_.model_path << std::endl;
-        channel_estimator_ = std::make_unique<MLChannelEstimatorTRT>(
-            channel_params_.model_path,
-            channel_params_.ml_input_size,
-            channel_params_.ml_output_size,
-            channel_params_.use_fp16,
-            channel_params_.max_batch_size
-        );
+        channel_estimator_ = std::make_unique<MLChannelEstimatorTRT>(module_id, channel_params_);
     } else {
         channel_estimator_ = std::make_unique<ChannelEstimator>(module_id, channel_params_);
     }
