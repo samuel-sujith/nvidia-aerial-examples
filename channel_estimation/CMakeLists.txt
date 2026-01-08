@@ -38,6 +38,7 @@ set(CMAKE_CUDA_ARCHITECTURES "75;80;86;89")
 # Core channel estimation module
 add_library(channel_estimator 
     channel_estimation_module.cu
+    ml_channel_estimator_tensorrt.cu
     channel_estimation_pipeline.cpp
     ml_channel_estimator_tensorrt.cu
 )
