@@ -12,10 +12,7 @@ class Logger : public nvinfer1::ILogger {
 };
 static Logger gLogger;
 #endif
-	// TensorRT engine initialization if model_path is provided
-	if (!params_.model_path.empty()) {
-		initialize_tensorrt_engine();
-	}
+
 void AiRxModule::cleanup_tensorrt_resources() {
 #ifdef TENSORRT_AVAILABLE
 	if (trt_context_) { trt_context_->destroy(); trt_context_ = nullptr; }
