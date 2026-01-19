@@ -15,11 +15,24 @@ static Logger gLogger;
 
 void AiRxModule::cleanup_tensorrt_resources() {
 #ifdef TENSORRT_AVAILABLE
-	if (trt_context_) { trt_context_->destroy(); trt_context_ = nullptr; }
-	if (trt_engine_) { trt_engine_->destroy(); trt_engine_ = nullptr; }
-	if (trt_runtime_) { trt_runtime_->destroy(); trt_runtime_ = nullptr; }
+	if (trt_context_) {
+		delete trt_context_;
+		trt_context_ = nullptr;
+	}
+	if (trt_engine_) {
+		delete trt_engine_;
+		trt_engine_ = nullptr;
+	}
+	if (trt_runtime_) {
+		delete trt_runtime_;
+		trt_runtime_ = nullptr;
+	}
 	if (d_trt_input_) { cudaFree(d_trt_input_); d_trt_input_ = nullptr; }
 	if (d_trt_output_) { cudaFree(d_trt_output_); d_trt_output_ = nullptr; }
+#else
+	trt_context_ = nullptr;
+	trt_engine_ = nullptr;
+	trt_runtime_ = nullptr;
 #endif
 }
 
