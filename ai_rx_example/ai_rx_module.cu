@@ -148,4 +148,26 @@ bool AiRxModule::initialize_tensorrt_engine() {
 #endif
 }
 
+AiRxModule::AiRxModule(const std::string& module_id, const AiRxParams& params)
+    : module_id_(module_id), params_(params) {
+    // Initialize port information
+    setup_port_info();
+
+    // Allocate GPU memory
+    allocate_gpu_memory();
+
+    // Initialize TensorRT engine if model path is provided
+    if (!params_.model_path.empty()) {
+        initialize_tensorrt_engine();
+    }
+}
+
+AiRxModule::~AiRxModule() {
+    // Clean up TensorRT resources
+    cleanup_tensorrt_resources();
+
+    // Deallocate GPU memory
+    deallocate_gpu_memory();
+}
+
 } // namespace ai_rx_example
