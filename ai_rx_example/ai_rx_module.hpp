@@ -1,13 +1,3 @@
-
-#ifdef TENSORRT_AVAILABLE
-#include <NvInfer.h>
-#include <NvInferRuntime.h>
-#include <fstream>
-#include <iostream>
-#endif
-
-// ...existing code...
-
 #pragma once
 
 #include "pipeline/imodule.hpp"
@@ -22,6 +12,14 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <span>
+
+#ifdef TENSORRT_AVAILABLE
+#include <NvInfer.h>
+#include <NvInferRuntime.h>
+#include <fstream>
+#include <iostream>
+#endif
+
 
 namespace ai_rx_example {
 

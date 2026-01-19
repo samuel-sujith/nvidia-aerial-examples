@@ -1,3 +1,11 @@
+#include "ai_rx_module.hpp"
+#include <cuda_runtime.h>
+#include <cuComplex.h>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
+#include <string>
+
 #ifdef TENSORRT_AVAILABLE
 #include <NvInfer.h>
 #include <NvInferRuntime.h>
@@ -12,6 +20,8 @@ class Logger : public nvinfer1::ILogger {
 };
 static Logger gLogger;
 #endif
+
+namespace ai_rx_example {
 
 void AiRxModule::cleanup_tensorrt_resources() {
 #ifdef TENSORRT_AVAILABLE
@@ -86,19 +96,6 @@ bool AiRxModule::run_trt_inference(cudaStream_t stream) {
 	return false;
 #endif
 }
-
-#include "ai_rx_module.hpp"
-#include <cuda_runtime.h>
-
-#include "ai_rx_module.hpp"
-#include <cuda_runtime.h>
-#include <cuComplex.h>
-#include <iostream>
-#include <stdexcept>
-#include <vector>
-#include <string>
-
-namespace ai_rx_example {
 
 // CUDA kernel for AI Rx inference (dummy thresholding)
 __global__ void ai_rx_infer_kernel_cuda(const float* rx_symbols, float* rx_bits, int num_symbols) {
