@@ -1,26 +1,12 @@
+
 #ifdef TENSORRT_AVAILABLE
 #include <NvInfer.h>
 #include <NvInferRuntime.h>
 #include <fstream>
 #include <iostream>
 #endif
-	// TensorRT resources for AI model
-#ifdef TENSORRT_AVAILABLE
-	nvinfer1::IRuntime* trt_runtime_{nullptr};
-	nvinfer1::ICudaEngine* trt_engine_{nullptr};
-	nvinfer1::IExecutionContext* trt_context_{nullptr};
-#else
-	void* trt_runtime_{nullptr};
-	void* trt_engine_{nullptr};
-	void* trt_context_{nullptr};
-#endif
-	float* d_trt_input_{nullptr};
-	float* d_trt_output_{nullptr};
 
-	bool load_engine_from_file(const std::string& engine_path);
-	bool initialize_tensorrt_engine();
-	void cleanup_tensorrt_resources();
-	bool run_trt_inference(cudaStream_t stream);
+// ...existing code...
 
 #pragma once
 
@@ -95,7 +81,6 @@ private:
 	float* d_rx_bits_ = nullptr;
 	void* current_rx_symbols_ = nullptr;
 
-	// TensorRT resources for AI model
 #ifdef TENSORRT_AVAILABLE
 	nvinfer1::IRuntime* trt_runtime_ = nullptr;
 	nvinfer1::ICudaEngine* trt_engine_ = nullptr;
