@@ -99,39 +99,39 @@ bool AiRxModule::initialize_tensorrt_engine() {
     }
 
     try {
-        // Create TensorRT runtime
+        printf("Creating TensorRT runtime\n");
         trt_runtime_ = nvinfer1::createInferRuntime(gLogger);
         if (!trt_runtime_) {
-            printf("Failed to create TensorRT runtime\n");
+            fprintf(stderr, "Failed to create TensorRT runtime\n");
             return false;
         }
 
-        // Load engine from file
+        printf("Loading TensorRT engine from file: %s\n", params_.model_path.c_str());
         if (!load_engine_from_file(params_.model_path)) {
-            printf("Failed to load TensorRT engine from %s\n", params_.model_path.c_str());
+            fprintf(stderr, "Failed to load TensorRT engine from %s\n", params_.model_path.c_str());
             return false;
         }
 
-        // Create execution context
+        printf("Creating TensorRT execution context\n");
         trt_context_ = trt_engine_->createExecutionContext();
         if (!trt_context_) {
-            printf("Failed to create TensorRT execution context\n");
+            fprintf(stderr, "Failed to create TensorRT execution context\n");
             return false;
         }
 
-        // Allocate device memory for input/output
+        printf("Allocating device memory for TensorRT input/output\n");
         size_t input_size = params_.num_symbols * sizeof(float);
         size_t output_size = params_.num_symbols * sizeof(float);
 
         cudaError_t err = cudaMalloc(&d_trt_input_, input_size);
         if (err != cudaSuccess) {
-            printf("Failed to allocate TensorRT input memory: %s\n", cudaGetErrorString(err));
+            fprintf(stderr, "Failed to allocate TensorRT input memory: %s\n", cudaGetErrorString(err));
             return false;
         }
 
         err = cudaMalloc(&d_trt_output_, output_size);
         if (err != cudaSuccess) {
-            printf("Failed to allocate TensorRT output memory: %s\n", cudaGetErrorString(err));
+            fprintf(stderr, "Failed to allocate TensorRT output memory: %s\n", cudaGetErrorString(err));
             return false;
         }
 
@@ -139,7 +139,7 @@ bool AiRxModule::initialize_tensorrt_engine() {
         return true;
 
     } catch (const std::exception& e) {
-        printf("Exception during TensorRT initialization: %s\n", e.what());
+        fprintf(stderr, "Exception during TensorRT initialization: %s\n", e.what());
         return false;
     }
 #else
@@ -171,6 +171,7 @@ AiRxModule::~AiRxModule() {
 }
 
 void AiRxModule::setup_port_info() {
+    printf("Setting up port information\n");
     // Setup input and output port information
     input_ports_.resize(1);
     input_ports_[0].name = "input";
@@ -187,25 +188,31 @@ void AiRxModule::setup_port_info() {
         framework::tensor::NvDataType::TensorR32F,
         {static_cast<size_t>(params_.num_symbols)}
     );
+    printf("Port information setup complete\n");
 }
 
 void AiRxModule::allocate_gpu_memory() {
+    printf("Allocating GPU memory\n");
     cudaError_t err;
 
     // Allocate memory for input symbols
     err = cudaMalloc(&d_rx_symbols_, params_.num_symbols * sizeof(float));
     if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate GPU memory for input symbols: %s\n", cudaGetErrorString(err));
         throw std::runtime_error("Failed to allocate GPU memory for input symbols");
     }
 
     // Allocate memory for output symbols
     err = cudaMalloc(&d_rx_bits_, params_.num_symbols * sizeof(float));
     if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate GPU memory for output symbols: %s\n", cudaGetErrorString(err));
         throw std::runtime_error("Failed to allocate GPU memory for output symbols");
     }
+    printf("GPU memory allocation complete\n");
 }
 
 void AiRxModule::deallocate_gpu_memory() {
+    printf("Deallocating GPU memory\n");
     if (d_rx_symbols_) {
         cudaFree(d_rx_symbols_);
         d_rx_symbols_ = nullptr;
@@ -215,6 +222,7 @@ void AiRxModule::deallocate_gpu_memory() {
         cudaFree(d_rx_bits_);
         d_rx_bits_ = nullptr;
     }
+    printf("GPU memory deallocation complete\n");
 }
 
 void AiRxModule::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
@@ -284,10 +292,19 @@ framework::pipeline::OutputPortMemoryCharacteristics AiRxModule::get_output_memo
 
 void AiRxModule::execute(cudaStream_t stream) {
     if (!current_rx_symbols_) {
+        fprintf(stderr, "Input symbols not set for execution\n");
         throw std::runtime_error("Input symbols not set for execution");
     }
 
+    printf("Executing AI Rx Module\n");
+
     // Perform computation (placeholder)
-    cudaMemcpyAsync(d_rx_bits_, d_rx_symbols_, params_.num_symbols * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+    cudaError_t err = cudaMemcpyAsync(d_rx_bits_, current_rx_symbols_, params_.num_symbols * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to copy input symbols to output buffer: %s\n", cudaGetErrorString(err));
+        throw std::runtime_error("Failed to copy input symbols to output buffer");
+    }
+
+    printf("Execution complete\n");
 }
 } // namespace ai_rx_example
