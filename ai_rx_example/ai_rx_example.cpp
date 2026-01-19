@@ -1,5 +1,3 @@
-
-
 #include "ai_rx_pipeline.hpp"
 #include <iostream>
 #include <vector>
