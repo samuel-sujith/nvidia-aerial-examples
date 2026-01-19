@@ -102,6 +102,11 @@ AiRxModule::AiRxModule(const std::string& module_id, const AiRxParams& params)
 	: module_id_(module_id), params_(params), d_rx_symbols_(nullptr), d_rx_bits_(nullptr), current_rx_symbols_(nullptr) {
 	setup_port_info();
 	allocate_gpu_memory();
+#ifdef TENSORRT_AVAILABLE
+	if (!params_.model_path.empty()) {
+		initialize_tensorrt_engine();
+	}
+#endif
 }
 
 AiRxModule::~AiRxModule() {
@@ -113,16 +118,16 @@ void AiRxModule::setup_port_info() {
 	input_ports_.resize(1);
 	input_ports_[0].name = "rx_symbols";
 	input_ports_[0].tensors.resize(1);
-	input_ports_[0].tensors[0].dtype = NvDataType::TensorR32F;
-	input_ports_[0].tensors[0].shape = {static_cast<size_t>(params_.num_symbols), 2};
 	input_ports_[0].tensors[0].device_ptr = nullptr;
+	input_ports_[0].tensors[0].tensor_info = framework::tensor::TensorInfo(
+		NvDataType::TensorR32F, std::vector<size_t>{static_cast<size_t>(params_.num_symbols), 2});
 
 	output_ports_.resize(1);
 	output_ports_[0].name = "rx_bits";
 	output_ports_[0].tensors.resize(1);
-	output_ports_[0].tensors[0].dtype = NvDataType::TensorR32F;
-	output_ports_[0].tensors[0].shape = {static_cast<size_t>(params_.num_symbols)};
 	output_ports_[0].tensors[0].device_ptr = nullptr;
+	output_ports_[0].tensors[0].tensor_info = framework::tensor::TensorInfo(
+		NvDataType::TensorR32F, std::vector<size_t>{static_cast<size_t>(params_.num_symbols)});
 }
 
 std::vector<std::string> AiRxModule::get_input_port_names() const {
@@ -205,7 +210,7 @@ void AiRxModule::execute(cudaStream_t stream) {
 	}
 	cudaMemcpyAsync(d_rx_symbols_, current_rx_symbols_, params_.num_symbols * 2 * sizeof(float), cudaMemcpyDeviceToDevice, stream);
 #ifdef TENSORRT_AVAILABLE
-	if (trt_context_ && d_trt_input_ && d_trt_output_) {
+	if (!params_.model_path.empty() && trt_context_ && d_trt_input_ && d_trt_output_) {
 		// Copy input to TensorRT input buffer
 		cudaMemcpyAsync(d_trt_input_, d_rx_symbols_, params_.num_symbols * 2 * sizeof(float), cudaMemcpyDeviceToDevice, stream);
 		run_trt_inference(stream);
