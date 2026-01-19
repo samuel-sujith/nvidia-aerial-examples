@@ -85,7 +85,37 @@ public:
 private:
 	std::string module_id_;
 	AiRxParams params_;
-	// Add model and buffer members as needed
+
+	// Port info
+	std::vector<framework::pipeline::PortInfo> input_ports_;
+	std::vector<framework::pipeline::PortInfo> output_ports_;
+
+	// Device memory
+	float* d_rx_symbols_ = nullptr;
+	float* d_rx_bits_ = nullptr;
+	void* current_rx_symbols_ = nullptr;
+
+	// TensorRT resources for AI model
+#ifdef TENSORRT_AVAILABLE
+	nvinfer1::IRuntime* trt_runtime_ = nullptr;
+	nvinfer1::ICudaEngine* trt_engine_ = nullptr;
+	nvinfer1::IExecutionContext* trt_context_ = nullptr;
+#else
+	void* trt_runtime_ = nullptr;
+	void* trt_engine_ = nullptr;
+	void* trt_context_ = nullptr;
+#endif
+	float* d_trt_input_ = nullptr;
+	float* d_trt_output_ = nullptr;
+
+	// Internal helpers
+	void setup_port_info();
+	void allocate_gpu_memory();
+	void deallocate_gpu_memory();
+	void cleanup_tensorrt_resources();
+	bool load_engine_from_file(const std::string& engine_path);
+	bool initialize_tensorrt_engine();
+	bool run_trt_inference(cudaStream_t stream);
 };
 
 } // namespace ai_rx_example
