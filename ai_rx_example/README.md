@@ -1,4 +1,3 @@
-
 # AI Rx Example
 
 This example demonstrates how to replace the receiver (Rx) side of a wireless pipeline with an AI model, using both Python and C++/CUDA (with TensorRT integration).
@@ -40,7 +39,7 @@ This example demonstrates how to replace the receiver (Rx) side of a wireless pi
 5. Run the executable:
 	```bash
 	# With TensorRT engine
-	./ai_rx_example/ai_rx_example rx_model.engine
+	./ai_rx_example/ai_rx_example --model-path=rx_model.engine
 	# Or use default CUDA kernel
 	./ai_rx_example/ai_rx_example
 	```
