@@ -170,4 +170,124 @@ AiRxModule::~AiRxModule() {
     deallocate_gpu_memory();
 }
 
+void AiRxModule::setup_port_info() {
+    // Setup input and output port information
+    input_ports_.resize(1);
+    input_ports_[0].name = "input";
+    input_ports_[0].tensors.resize(1);
+    input_ports_[0].tensors[0].tensor_info = framework::tensor::TensorInfo(
+        framework::tensor::NvDataType::TensorR32F,
+        {static_cast<size_t>(params_.num_symbols)}
+    );
+
+    output_ports_.resize(1);
+    output_ports_[0].name = "output";
+    output_ports_[0].tensors.resize(1);
+    output_ports_[0].tensors[0].tensor_info = framework::tensor::TensorInfo(
+        framework::tensor::NvDataType::TensorR32F,
+        {static_cast<size_t>(params_.num_symbols)}
+    );
+}
+
+void AiRxModule::allocate_gpu_memory() {
+    cudaError_t err;
+
+    // Allocate memory for input symbols
+    err = cudaMalloc(&d_rx_symbols_, params_.num_symbols * sizeof(float));
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to allocate GPU memory for input symbols");
+    }
+
+    // Allocate memory for output symbols
+    err = cudaMalloc(&d_rx_bits_, params_.num_symbols * sizeof(float));
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to allocate GPU memory for output symbols");
+    }
+}
+
+void AiRxModule::deallocate_gpu_memory() {
+    if (d_rx_symbols_) {
+        cudaFree(d_rx_symbols_);
+        d_rx_symbols_ = nullptr;
+    }
+
+    if (d_rx_bits_) {
+        cudaFree(d_rx_bits_);
+        d_rx_bits_ = nullptr;
+    }
+}
+
+void AiRxModule::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    // Implementation for setting up memory using the provided memory slice
+    // For now, this is a placeholder
+}
+
+std::vector<framework::tensor::TensorInfo> AiRxModule::get_input_tensor_info(std::string_view port_name) const {
+    if (port_name == "input") {
+        return {input_ports_[0].tensors[0].tensor_info};
+    }
+    return {};
+}
+
+std::vector<framework::tensor::TensorInfo> AiRxModule::get_output_tensor_info(std::string_view port_name) const {
+    if (port_name == "output") {
+        return {output_ports_[0].tensors[0].tensor_info};
+    }
+    return {};
+}
+
+std::vector<std::string> AiRxModule::get_input_port_names() const {
+    return {"input"};
+}
+
+std::vector<std::string> AiRxModule::get_output_port_names() const {
+    return {"output"};
+}
+
+void AiRxModule::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
+    if (!inputs.empty()) {
+        current_rx_symbols_ = inputs[0].tensors[0].device_ptr;
+    }
+}
+
+std::vector<framework::pipeline::PortInfo> AiRxModule::get_outputs() const {
+    auto outputs = output_ports_;
+    if (!outputs.empty() && !outputs[0].tensors.empty()) {
+        outputs[0].tensors[0].device_ptr = d_rx_bits_;
+    }
+    return outputs;
+}
+
+void AiRxModule::warmup(cudaStream_t stream) {
+    // Perform any warmup operations if needed
+    cudaMemsetAsync(d_rx_symbols_, 0, params_.num_symbols * sizeof(float), stream);
+    cudaMemsetAsync(d_rx_bits_, 0, params_.num_symbols * sizeof(float), stream);
+}
+
+void AiRxModule::configure_io(const framework::pipeline::DynamicParams& params, cudaStream_t stream) {
+    // Configure IO dynamically if needed
+    // Placeholder implementation
+}
+
+framework::pipeline::ModuleMemoryRequirements AiRxModule::get_requirements() const {
+    framework::pipeline::ModuleMemoryRequirements requirements;
+    requirements.device_tensor_bytes = params_.num_symbols * sizeof(float) * 2; // Input and output
+    requirements.alignment = 256; // CUDA memory alignment
+    return requirements;
+}
+
+framework::pipeline::OutputPortMemoryCharacteristics AiRxModule::get_output_memory_characteristics(std::string_view port_name) const {
+    framework::pipeline::OutputPortMemoryCharacteristics characteristics;
+    characteristics.provides_fixed_address_for_zero_copy = true;
+    return characteristics;
+}
+
+void AiRxModule::execute(cudaStream_t stream) {
+    if (!current_rx_symbols_) {
+        throw std::runtime_error("Input symbols not set for execution");
+    }
+
+    // Perform computation (placeholder)
+    cudaMemcpyAsync(d_rx_bits_, d_rx_symbols_, params_.num_symbols * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+}
 } // namespace ai_rx_example
