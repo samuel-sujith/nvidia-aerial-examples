@@ -55,6 +55,16 @@ nvidia-aerial-examples/
 │   ├── framework_stubs.cpp      # Framework compatibility layer
 │   ├── README.md                # Detailed module documentation
 │   └── CMakeLists.txt           # Build configuration
+├── ai_rx_example/               # AI-based receiver pipeline example
+│   ├── ai_rx_module.hpp         # AiRxModule class interface (TensorRT/CUDA)
+│   ├── ai_rx_module.cu          # CUDA/TensorRT inference implementation
+│   ├── ai_rx_pipeline.hpp       # High-level pipeline wrapper
+│   ├── ai_rx_pipeline.cpp       # Pipeline implementation
+│   ├── ai_rx_example.cpp        # Example with model argument and fallback
+│   ├── sionna_tx_rx_pipeline.py # Sionna-based data generation
+│   ├── train_ai_rx_model.py     # AI Rx model training/export
+│   ├── CMakeLists.txt           # Build configuration with TensorRT integration
+│   ├── README.md                # Usage and workflow documentation
 ├── neural_beamforming/          # Neural beamforming with classical and ML algorithms
 │   ├── neural_beamforming_module.hpp    # NeuralBeamformer class interface
 │   ├── neural_beamforming_module.cu     # CUDA kernels for beamforming algorithms
@@ -146,6 +156,8 @@ find . -name "*example" -type f -executable
 ./modulation_mapping/modulation_mapping_example
 ./fft_processing/fft_processing_example  
 ./mimo_detection/mimo_detection_example
+./ai_rx_example/ai_rx_example rx_model.engine
+./ai_rx_example/ai_rx_example
 ./neural_beamforming/neural_beamforming_example
 
 # Run simple examples
