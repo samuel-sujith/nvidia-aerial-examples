@@ -4,6 +4,10 @@
 #include "pipeline/imodule.hpp"
 #include "pipeline/istream_executor.hpp"
 #include "pipeline/iallocation_info_provider.hpp"
+#include "pipeline/igraph_node_provider.hpp"
+#include "pipeline/igraph.hpp"
+#include "pipeline/kernel_descriptor_accessor.hpp"
+#include "pipeline/kernel_launch_config.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "tensor/data_types.hpp"
@@ -49,6 +53,7 @@ struct MIMODescriptor {
 /// MIMO detector module implementing the framework interface
 class MIMODetector final : public framework::pipeline::IModule,
                           public framework::pipeline::IAllocationInfoProvider,
+                          public framework::pipeline::IGraphNodeProvider,
                           public framework::pipeline::IStreamExecutor {
 public:
     /**
@@ -93,7 +98,7 @@ public:
     ) override;
     
     // IModule casting methods
-    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return nullptr; }
+    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return this; }
     framework::pipeline::IStreamExecutor* as_stream_executor() override { return this; }
     
     // IStreamExecutor interface
@@ -101,9 +106,15 @@ public:
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
     void execute(cudaStream_t stream) override;
 
+    [[nodiscard]] std::span<const CUgraphNode> add_node_to_graph(
+        gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+        std::span<const CUgraphNode> deps) override;
+    void update_graph_node_params(CUgraphExec exec, const framework::pipeline::DynamicParams& params) override;
+
 private:
     std::string module_id_;
     MIMOParams params_;
+    framework::pipeline::ModuleMemorySlice mem_slice_;
     framework::pipeline::ModuleMemorySlice mem_slice_;
     
     // Port information
@@ -113,6 +124,7 @@ private:
     // GPU resources
     MIMODescriptor* d_descriptor_;
     MIMODescriptor h_descriptor_;
+    MIMOParams* d_params_{nullptr};
     
     // Device memory pointers
     cuComplex* d_received_symbols_{nullptr};
@@ -124,6 +136,14 @@ private:
     // Current tensor pointers (set during set_inputs)
     const cuComplex* current_received_{nullptr};
     const cuComplex* current_channel_{nullptr};
+
+    std::unique_ptr<framework::pipeline::KernelDescriptorAccessor> kernel_desc_mgr_;
+    MIMODescriptor* dynamic_params_cpu_ptr_{nullptr};
+    MIMODescriptor* dynamic_params_gpu_ptr_{nullptr};
+    framework::pipeline::KernelLaunchConfig<1> detect_kernel_config_;
+    framework::pipeline::KernelLaunchConfig<1> hard_kernel_config_;
+    CUgraphNode detect_node_{nullptr};
+    CUgraphNode hard_node_{nullptr};
     
     void allocate_gpu_memory();
     void deallocate_gpu_memory();

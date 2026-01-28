@@ -28,11 +28,27 @@ bool ModulationPipeline::initialize() {
 
         auto requirements = mapper_->get_requirements();
         module_tensor_bytes_ = requirements.device_tensor_bytes;
+        static_desc_bytes_ = requirements.static_kernel_descriptor_bytes;
+        dynamic_desc_bytes_ = requirements.dynamic_kernel_descriptor_bytes;
         if (module_tensor_bytes_ > 0) {
             cudaMalloc(&d_module_tensor_, module_tensor_bytes_);
             framework::pipeline::ModuleMemorySlice slice{};
             slice.device_tensor_ptr = reinterpret_cast<std::byte*>(d_module_tensor_);
             slice.device_tensor_bytes = module_tensor_bytes_;
+            if (static_desc_bytes_ > 0) {
+                cudaMallocHost(&static_desc_cpu_, static_desc_bytes_);
+                cudaMalloc(&static_desc_gpu_, static_desc_bytes_);
+                slice.static_kernel_descriptor_cpu_ptr = static_desc_cpu_;
+                slice.static_kernel_descriptor_gpu_ptr = static_desc_gpu_;
+                slice.static_kernel_descriptor_bytes = static_desc_bytes_;
+            }
+            if (dynamic_desc_bytes_ > 0) {
+                cudaMallocHost(&dynamic_desc_cpu_, dynamic_desc_bytes_);
+                cudaMalloc(&dynamic_desc_gpu_, dynamic_desc_bytes_);
+                slice.dynamic_kernel_descriptor_cpu_ptr = dynamic_desc_cpu_;
+                slice.dynamic_kernel_descriptor_gpu_ptr = dynamic_desc_gpu_;
+                slice.dynamic_kernel_descriptor_bytes = dynamic_desc_bytes_;
+            }
             mapper_->setup_memory(slice);
         }
         
@@ -290,6 +306,7 @@ bool ModulationPipeline::process_device(
         
         // Set inputs to mapper
         mapper_->set_inputs(inputs);
+        mapper_->configure_io({}, stream);
         
         // Execute processing
         mapper_->execute(stream);
@@ -522,7 +539,25 @@ void ModulationPipeline::deallocate_buffers() {
         cudaFree(d_module_tensor_);
         d_module_tensor_ = nullptr;
     }
+    if (static_desc_cpu_) {
+        cudaFreeHost(static_desc_cpu_);
+        static_desc_cpu_ = nullptr;
+    }
+    if (static_desc_gpu_) {
+        cudaFree(static_desc_gpu_);
+        static_desc_gpu_ = nullptr;
+    }
+    if (dynamic_desc_cpu_) {
+        cudaFreeHost(dynamic_desc_cpu_);
+        dynamic_desc_cpu_ = nullptr;
+    }
+    if (dynamic_desc_gpu_) {
+        cudaFree(dynamic_desc_gpu_);
+        dynamic_desc_gpu_ = nullptr;
+    }
     module_tensor_bytes_ = 0;
+    static_desc_bytes_ = 0;
+    dynamic_desc_bytes_ = 0;
 }
 
 void ModulationPipeline::update_metrics(double processing_time_ms, size_t num_symbols, size_t num_errors) {

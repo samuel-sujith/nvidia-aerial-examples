@@ -17,6 +17,29 @@ ChannelEstimationPipeline::ChannelEstimationPipeline(
     
 }
 
+ChannelEstimationPipeline::~ChannelEstimationPipeline() {
+    if (device_memory_) {
+        cudaFree(device_memory_);
+        device_memory_ = nullptr;
+    }
+    if (static_desc_cpu_) {
+        cudaFreeHost(static_desc_cpu_);
+        static_desc_cpu_ = nullptr;
+    }
+    if (static_desc_gpu_) {
+        cudaFree(static_desc_gpu_);
+        static_desc_gpu_ = nullptr;
+    }
+    if (dynamic_desc_cpu_) {
+        cudaFreeHost(dynamic_desc_cpu_);
+        dynamic_desc_cpu_ = nullptr;
+    }
+    if (dynamic_desc_gpu_) {
+        cudaFree(dynamic_desc_gpu_);
+        dynamic_desc_gpu_ = nullptr;
+    }
+}
+
 void ChannelEstimationPipeline::setup() {
     // Create the channel estimator module
     std::string module_id = pipeline_id_ + "_channel_estimator";
@@ -57,13 +80,9 @@ void ChannelEstimationPipeline::configure_io(
         throw std::runtime_error("Channel estimation pipeline requires exactly 1 external output");
     }
     
-    // Combine all input and output ports, then set and configure once
-    std::vector<framework::pipeline::PortInfo> all_ports;
-    all_ports.reserve(external_inputs.size() + external_outputs.size());
-    for (const auto& p : external_inputs) all_ports.push_back(p);
-    for (const auto& p : external_outputs) all_ports.push_back(p);
-    channel_estimator_->set_inputs(all_ports);
-    std::cout << "[DEBUG] Pipeline: set_inputs called with all_ports. Now calling configure_io..." << std::endl;
+    // Set inputs and configure
+    channel_estimator_->set_inputs(external_inputs);
+    std::cout << "[DEBUG] Pipeline: set_inputs called with external inputs. Now calling configure_io..." << std::endl;
     channel_estimator_->configure_io(params, stream);
     // Get module outputs and update external outputs
     auto module_output_ports = channel_estimator_->get_outputs();
@@ -89,6 +108,8 @@ void ChannelEstimationPipeline::execute_graph(cudaStream_t stream) {
 void ChannelEstimationPipeline::allocate_pipeline_memory() {
     auto requirements = channel_estimator_->get_requirements();
     memory_size_ = requirements.device_tensor_bytes;
+    static_desc_bytes_ = requirements.static_kernel_descriptor_bytes;
+    dynamic_desc_bytes_ = requirements.dynamic_kernel_descriptor_bytes;
     cudaError_t err = cudaMalloc(&device_memory_, memory_size_);
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate pipeline device memory");
@@ -97,6 +118,20 @@ void ChannelEstimationPipeline::allocate_pipeline_memory() {
     module_slice_ = {};
     module_slice_.device_tensor_ptr = reinterpret_cast<std::byte*>(device_memory_);
     module_slice_.device_tensor_bytes = memory_size_;
+    if (static_desc_bytes_ > 0) {
+        cudaMallocHost(&static_desc_cpu_, static_desc_bytes_);
+        cudaMalloc(&static_desc_gpu_, static_desc_bytes_);
+        module_slice_.static_kernel_descriptor_cpu_ptr = static_desc_cpu_;
+        module_slice_.static_kernel_descriptor_gpu_ptr = static_desc_gpu_;
+        module_slice_.static_kernel_descriptor_bytes = static_desc_bytes_;
+    }
+    if (dynamic_desc_bytes_ > 0) {
+        cudaMallocHost(&dynamic_desc_cpu_, dynamic_desc_bytes_);
+        cudaMalloc(&dynamic_desc_gpu_, dynamic_desc_bytes_);
+        module_slice_.dynamic_kernel_descriptor_cpu_ptr = dynamic_desc_cpu_;
+        module_slice_.dynamic_kernel_descriptor_gpu_ptr = dynamic_desc_gpu_;
+        module_slice_.dynamic_kernel_descriptor_bytes = dynamic_desc_bytes_;
+    }
 }
 
 void ChannelEstimationPipeline::setup_tensor_connections() {

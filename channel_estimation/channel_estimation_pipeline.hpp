@@ -45,7 +45,7 @@ public:
         const ChannelEstParams& params = {}
     );
     
-    ~ChannelEstimationPipeline() override = default;
+    ~ChannelEstimationPipeline() override;
 
     // IPipeline interface
     [[nodiscard]] std::string_view get_pipeline_id() const override { return pipeline_id_; }
@@ -80,6 +80,12 @@ private:
     void* device_memory_{nullptr};
     std::size_t memory_size_{0};
     framework::pipeline::ModuleMemorySlice module_slice_{};
+    std::byte* static_desc_cpu_{nullptr};
+    std::byte* static_desc_gpu_{nullptr};
+    std::byte* dynamic_desc_cpu_{nullptr};
+    std::byte* dynamic_desc_gpu_{nullptr};
+    std::size_t static_desc_bytes_{0};
+    std::size_t dynamic_desc_bytes_{0};
     void allocate_pipeline_memory();
     void setup_tensor_connections();
 };

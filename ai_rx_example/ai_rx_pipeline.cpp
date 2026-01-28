@@ -70,12 +70,18 @@ bool AiRxPipeline::process_rx(
 	inputs[0].tensors[0].device_ptr = d_rx_symbols_;
 	// tensor_info is not used in this minimal example
 	ai_rx_module_->set_inputs(inputs);
+	ai_rx_module_->configure_io({}, stream);
 
 	// Run inference
 	ai_rx_module_->execute(stream);
 
 	// Copy output from device
-	cudaMemcpyAsync(h_rx_bits_, d_rx_bits_, num_symbols * sizeof(float), cudaMemcpyDeviceToHost, stream);
+	auto outputs = ai_rx_module_->get_outputs();
+	if (outputs.empty() || outputs[0].tensors.empty()) {
+		std::cerr << "AI Rx module produced no output" << std::endl;
+		return false;
+	}
+	cudaMemcpyAsync(h_rx_bits_, outputs[0].tensors[0].device_ptr, num_symbols * sizeof(float), cudaMemcpyDeviceToHost, stream);
 	cudaStreamSynchronize(stream);
 
 	// Fill output vector

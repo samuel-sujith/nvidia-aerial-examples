@@ -117,6 +117,24 @@ void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice
     mem_slice_ = memory_slice;
     d_channel_estimates_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
+    kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
+    dynamic_params_cpu_ptr_ =
+        &kernel_desc_mgr_->create_dynamic_param<ChannelEstDescriptor>(0);
+    dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<ChannelEstDescriptor>(0);
+    d_descriptor_ = dynamic_params_gpu_ptr_;
+
+    int num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
+    dim3 blockSize(256);
+    dim3 gridSize((num_pilots + blockSize.x - 1) / blockSize.x);
+    ls_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(ls_channel_estimation_kernel));
+    ls_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
+    framework::pipeline::setup_kernel_arguments(ls_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    int num_data = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
+    dim3 gridInterp((num_data + blockSize.x - 1) / blockSize.x);
+    interp_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(interpolate_channel_estimates_kernel));
+    interp_kernel_config_.setup_kernel_dimensions(gridInterp, blockSize);
+    framework::pipeline::setup_kernel_arguments(interp_kernel_config_, *dynamic_params_gpu_ptr_);
 }
 
 void ChannelEstimator::warmup(cudaStream_t /*stream*/) {
@@ -127,25 +145,15 @@ void ChannelEstimator::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
-    // Update host descriptor
-    h_descriptor_.rx_pilots = current_rx_pilots_;
-    h_descriptor_.tx_pilots = current_tx_pilots_;
-    h_descriptor_.channel_estimates = current_channel_estimates_;
-    h_descriptor_.params = d_params_;  // FIXED: Device params pointer
-    h_descriptor_.num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
-    h_descriptor_.num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
-    h_descriptor_.pilot_estimates = d_pilot_estimates_;
-    
-    // Copy to device
-    cudaError_t err = cudaMemcpyAsync(
-        d_descriptor_,
-        &h_descriptor_,
-        sizeof(ChannelEstDescriptor),
-        cudaMemcpyHostToDevice,
-        stream
-    );
-    if (err != cudaSuccess) {
-        throw std::runtime_error(std::string("cudaMemcpyAsync descriptor failed: ") + cudaGetErrorString(err));
+    if (dynamic_params_cpu_ptr_) {
+        dynamic_params_cpu_ptr_->rx_pilots = current_rx_pilots_;
+        dynamic_params_cpu_ptr_->tx_pilots = current_tx_pilots_;
+        dynamic_params_cpu_ptr_->channel_estimates = d_channel_estimates_;
+        dynamic_params_cpu_ptr_->params = d_params_;
+        dynamic_params_cpu_ptr_->num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
+        dynamic_params_cpu_ptr_->num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
+        dynamic_params_cpu_ptr_->pilot_estimates = d_pilot_estimates_;
+        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
     }
 }
 
@@ -155,29 +163,27 @@ void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo>
             current_rx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
         } else if (port.name == "tx_pilots" && !port.tensors.empty()) {
             current_tx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
-        } else if (port.name == "channel_estimates" && !port.tensors.empty()) {
-            current_channel_estimates_ = static_cast<cuComplex*>(port.tensors[0].device_ptr);
         }
     }
 }
 
 std::vector<framework::pipeline::PortInfo> ChannelEstimator::get_outputs() const {
     auto outputs = output_ports_;
-    if (!outputs.empty() && !outputs[0].tensors.empty() && current_channel_estimates_) {
-        outputs[0].tensors[0].device_ptr = current_channel_estimates_;
+    if (!outputs.empty() && !outputs[0].tensors.empty()) {
+        outputs[0].tensors[0].device_ptr = d_channel_estimates_;
     }
     return outputs;
 }
 
 void ChannelEstimator::execute(cudaStream_t stream) {
     // Validate pointers
-    if (!current_rx_pilots_ || !current_tx_pilots_ || !current_channel_estimates_) {
+    if (!current_rx_pilots_ || !current_tx_pilots_ || !d_channel_estimates_) {
         throw std::runtime_error("Missing input/output pointers");
     }
     
     // Zero output
     size_t out_size = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
-    cudaError_t err = cudaMemsetAsync(current_channel_estimates_, 0, out_size, stream);
+    cudaError_t err = cudaMemsetAsync(d_channel_estimates_, 0, out_size, stream);
     if (err != cudaSuccess) {
         throw std::runtime_error(std::string("cudaMemsetAsync failed: ") + cudaGetErrorString(err));
     }
@@ -199,10 +205,6 @@ void ChannelEstimator::execute(cudaStream_t stream) {
 
 void ChannelEstimator::allocate_gpu_memory() {
     cudaError_t err;
-    
-    // Descriptor
-    err = cudaMalloc(&d_descriptor_, sizeof(ChannelEstDescriptor));
-    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_descriptor_ failed");
     
     // FIXED: Device params copy
     err = cudaMalloc(&d_params_, sizeof(ChannelEstParams));
@@ -229,26 +231,38 @@ void ChannelEstimator::allocate_gpu_memory() {
 void ChannelEstimator::deallocate_gpu_memory() {
     // Individual frees to avoid type mismatch
     if (d_params_) { cudaFree(d_params_); d_params_ = nullptr; }
-    if (d_descriptor_) { cudaFree(d_descriptor_); d_descriptor_ = nullptr; }
+    d_descriptor_ = nullptr;
     if (d_pilot_symbols_) { cudaFree(d_pilot_symbols_); d_pilot_symbols_ = nullptr; }
     if (d_pilot_estimates_) { cudaFree(d_pilot_estimates_); d_pilot_estimates_ = nullptr; }
     d_channel_estimates_ = nullptr;
 }
 
 cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stream) {
-    int num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
-    dim3 blockSize(256);
-    dim3 gridSize((num_pilots + blockSize.x - 1) / blockSize.x);
-    
-    ls_channel_estimation_kernel<<<gridSize, blockSize, 0, stream>>>(d_descriptor_);
-    cudaError_t err = cudaGetLastError();
+    const CUresult ls_err = ls_kernel_config_.launch(stream);
+    cudaError_t err = (ls_err == CUDA_SUCCESS) ? cudaGetLastError() : cudaErrorLaunchFailure;
     if (err != cudaSuccess) return err;
     
-    int num_data = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
-    dim3 gridInterp((num_data + blockSize.x - 1) / blockSize.x);
-    interpolate_channel_estimates_kernel<<<gridInterp, blockSize, 0, stream>>>(d_descriptor_);
+    const CUresult interp_err = interp_kernel_config_.launch(stream);
+    err = (interp_err == CUDA_SUCCESS) ? cudaGetLastError() : cudaErrorLaunchFailure;
     
     return cudaGetLastError();
+}
+
+std::span<const CUgraphNode> ChannelEstimator::add_node_to_graph(
+    gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+    std::span<const CUgraphNode> deps) {
+    ls_node_ = graph->add_kernel_node(deps, ls_kernel_config_.get_kernel_params());
+    interp_node_ = graph->add_kernel_node({&ls_node_, 1}, interp_kernel_config_.get_kernel_params());
+    return {&interp_node_, 1};
+}
+
+void ChannelEstimator::update_graph_node_params(
+    CUgraphExec exec,
+    const framework::pipeline::DynamicParams& /*params*/) {
+    auto ls_params = ls_kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, ls_node_, &ls_params);
+    auto interp_params = interp_kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, interp_node_, &interp_params);
 }
 
 framework::pipeline::ModuleMemoryRequirements ChannelEstimator::get_requirements() const {
@@ -256,6 +270,7 @@ framework::pipeline::ModuleMemoryRequirements ChannelEstimator::get_requirements
     
     size_t estimates_bytes = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
     reqs.device_tensor_bytes = estimates_bytes;
+    reqs.dynamic_kernel_descriptor_bytes = sizeof(ChannelEstDescriptor);
     reqs.alignment = 256; // CUDA memory alignment
     
     return reqs;

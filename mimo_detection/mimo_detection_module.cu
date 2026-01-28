@@ -9,96 +9,82 @@
 namespace mimo_detection {
 
 // CUDA kernels for MIMO detection algorithms
-__global__ void zero_forcing_detection_kernel(
-    const cuComplex* received_symbols,
-    const cuComplex* channel_matrix,
-    cuComplex* detected_symbols,
-    int num_tx, int num_rx, int num_subcarriers, int num_symbols
-) {
+__global__ void zero_forcing_detection_kernel(const MIMODescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_elements = num_subcarriers * num_symbols;
+    int total_elements = desc->params->num_subcarriers * desc->params->num_ofdm_symbols;
     
     if (idx < total_elements) {
-        int subcarrier = idx % num_subcarriers;
-        int symbol = idx / num_subcarriers;
+        int subcarrier = idx % desc->params->num_subcarriers;
+        int symbol = idx / desc->params->num_subcarriers;
         
         // For each subcarrier, solve H * x = y using pseudo-inverse
         // This is a simplified ZF for demonstration - real implementation would use matrix inversion
-        for (int tx = 0; tx < num_tx; ++tx) {
+        for (int tx = 0; tx < desc->params->num_tx_antennas; ++tx) {
             cuComplex sum = make_cuComplex(0.0f, 0.0f);
             float norm = 0.0f;
             
             // Simplified ZF: use matched filter as approximation
-            for (int rx = 0; rx < num_rx; ++rx) {
-                int h_idx = (rx * num_tx + tx) * num_subcarriers + subcarrier;
-                int y_idx = (rx * num_subcarriers + subcarrier) * num_symbols + symbol;
+            for (int rx = 0; rx < desc->params->num_rx_antennas; ++rx) {
+                int h_idx = (rx * desc->params->num_tx_antennas + tx) * desc->params->num_subcarriers + subcarrier;
+                int y_idx = (rx * desc->params->num_subcarriers + subcarrier) * desc->params->num_ofdm_symbols + symbol;
                 
-                cuComplex h_conj = cuConjf(channel_matrix[h_idx]);
-                sum = cuCaddf(sum, cuCmulf(h_conj, received_symbols[y_idx]));
-                norm += cuCrealf(cuCmulf(h_conj, channel_matrix[h_idx]));
+                cuComplex h_conj = cuConjf(desc->channel_matrix[h_idx]);
+                sum = cuCaddf(sum, cuCmulf(h_conj, desc->received_symbols[y_idx]));
+                norm += cuCrealf(cuCmulf(h_conj, desc->channel_matrix[h_idx]));
             }
             
             if (norm > 1e-6f) {
                 sum = make_cuComplex(cuCrealf(sum) / norm, cuCimagf(sum) / norm);
             }
             
-            int out_idx = (tx * num_subcarriers + subcarrier) * num_symbols + symbol;
-            detected_symbols[out_idx] = sum;
+            int out_idx = (tx * desc->params->num_subcarriers + subcarrier) * desc->params->num_ofdm_symbols + symbol;
+            desc->detected_symbols[out_idx] = sum;
         }
     }
 }
 
-__global__ void mmse_detection_kernel(
-    const cuComplex* received_symbols,
-    const cuComplex* channel_matrix,
-    cuComplex* detected_symbols,
-    float noise_variance,
-    int num_tx, int num_rx, int num_subcarriers, int num_symbols
-) {
+__global__ void mmse_detection_kernel(const MIMODescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_elements = num_subcarriers * num_symbols;
+    int total_elements = desc->params->num_subcarriers * desc->params->num_ofdm_symbols;
     
     if (idx < total_elements) {
-        int subcarrier = idx % num_subcarriers;
-        int symbol = idx / num_subcarriers;
+        int subcarrier = idx % desc->params->num_subcarriers;
+        int symbol = idx / desc->params->num_subcarriers;
         
         // MMSE detection: (H^H * H + sigma^2 * I)^-1 * H^H * y
         // Simplified implementation for demonstration
-        for (int tx = 0; tx < num_tx; ++tx) {
+        for (int tx = 0; tx < desc->params->num_tx_antennas; ++tx) {
             cuComplex sum = make_cuComplex(0.0f, 0.0f);
-            float norm = noise_variance; // Add noise regularization
+            float norm = desc->params->noise_variance; // Add noise regularization
             
-            for (int rx = 0; rx < num_rx; ++rx) {
-                int h_idx = (rx * num_tx + tx) * num_subcarriers + subcarrier;
-                int y_idx = (rx * num_subcarriers + subcarrier) * num_symbols + symbol;
+            for (int rx = 0; rx < desc->params->num_rx_antennas; ++rx) {
+                int h_idx = (rx * desc->params->num_tx_antennas + tx) * desc->params->num_subcarriers + subcarrier;
+                int y_idx = (rx * desc->params->num_subcarriers + subcarrier) * desc->params->num_ofdm_symbols + symbol;
                 
-                cuComplex h_conj = cuConjf(channel_matrix[h_idx]);
-                sum = cuCaddf(sum, cuCmulf(h_conj, received_symbols[y_idx]));
-                norm += cuCrealf(cuCmulf(h_conj, channel_matrix[h_idx]));
+                cuComplex h_conj = cuConjf(desc->channel_matrix[h_idx]);
+                sum = cuCaddf(sum, cuCmulf(h_conj, desc->received_symbols[y_idx]));
+                norm += cuCrealf(cuCmulf(h_conj, desc->channel_matrix[h_idx]));
             }
             
             if (norm > 1e-6f) {
                 sum = make_cuComplex(cuCrealf(sum) / norm, cuCimagf(sum) / norm);
             }
             
-            int out_idx = (tx * num_subcarriers + subcarrier) * num_symbols + symbol;
-            detected_symbols[out_idx] = sum;
+            int out_idx = (tx * desc->params->num_subcarriers + subcarrier) * desc->params->num_ofdm_symbols + symbol;
+            desc->detected_symbols[out_idx] = sum;
         }
     }
 }
 
-__global__ void qpsk_hard_decision_kernel(
-    cuComplex* symbols, 
-    int total_symbols
-) {
+__global__ void qpsk_hard_decision_kernel(const MIMODescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
-    if (idx < total_symbols) {
-        cuComplex sym = symbols[idx];
+    if (idx < desc->total_resource_elements) {
+        cuComplex sym = desc->detected_symbols[idx];
         float real_part = cuCrealf(sym) > 0.0f ? 1.0f : -1.0f;
         float imag_part = cuCimagf(sym) > 0.0f ? 1.0f : -1.0f;
         
-        symbols[idx] = make_cuComplex(real_part, imag_part);
+        desc->detected_symbols[idx] = make_cuComplex(real_part, imag_part);
     }
 }
 
@@ -214,6 +200,30 @@ void MIMODetector::setup_memory(const framework::pipeline::ModuleMemorySlice& me
     }
 
     allocate_gpu_memory();
+    kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
+    dynamic_params_cpu_ptr_ =
+        &kernel_desc_mgr_->create_dynamic_param<MIMODescriptor>(0);
+    dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<MIMODescriptor>(0);
+    d_descriptor_ = dynamic_params_gpu_ptr_;
+
+    int total_elements = params_.num_subcarriers * params_.num_ofdm_symbols;
+    dim3 blockSize(256);
+    dim3 gridSize((total_elements + blockSize.x - 1) / blockSize.x);
+    if (params_.algorithm == MIMODetectionAlgorithm::ZERO_FORCING) {
+        detect_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(zero_forcing_detection_kernel));
+    } else {
+        detect_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(mmse_detection_kernel));
+    }
+    detect_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
+    framework::pipeline::setup_kernel_arguments(detect_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    if (params_.constellation_size == 4) {
+        int total_symbols = params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols;
+        dim3 gridSizeHard((total_symbols + blockSize.x - 1) / blockSize.x);
+        hard_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qpsk_hard_decision_kernel));
+        hard_kernel_config_.setup_kernel_dimensions(gridSizeHard, blockSize);
+        framework::pipeline::setup_kernel_arguments(hard_kernel_config_, *dynamic_params_gpu_ptr_);
+    }
 }
 
 void MIMODetector::warmup(cudaStream_t /*stream*/) {
@@ -222,18 +232,16 @@ void MIMODetector::warmup(cudaStream_t /*stream*/) {
 
 void MIMODetector::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
-    cudaStream_t /*stream*/
+    cudaStream_t stream
 ) {
-    // Update descriptor with current tensor pointers
-    h_descriptor_.received_symbols = current_received_;
-    h_descriptor_.channel_matrix = current_channel_;
-    h_descriptor_.detected_symbols = d_detected_symbols_;
-    h_descriptor_.soft_bits = d_soft_bits_;
-    
-    // Copy descriptor to GPU
-    cudaError_t err = cudaMemcpy(d_descriptor_, &h_descriptor_, sizeof(MIMODescriptor), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to copy MIMO descriptor to GPU");
+    if (dynamic_params_cpu_ptr_) {
+        dynamic_params_cpu_ptr_->received_symbols = d_received_symbols_;
+        dynamic_params_cpu_ptr_->channel_matrix = d_channel_matrix_;
+        dynamic_params_cpu_ptr_->detected_symbols = d_detected_symbols_;
+        dynamic_params_cpu_ptr_->soft_bits = d_soft_bits_;
+        dynamic_params_cpu_ptr_->params = d_params_;
+        dynamic_params_cpu_ptr_->total_resource_elements = calculate_total_elements();
+        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
     }
 }
 
@@ -290,10 +298,14 @@ void MIMODetector::execute(cudaStream_t stream) {
 }
 
 void MIMODetector::allocate_gpu_memory() {
-    // Allocate GPU memory for descriptor
-    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(MIMODescriptor));
+    cudaError_t err;
+    err = cudaMalloc(&d_params_, sizeof(MIMOParams));
     if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for descriptor");
+        throw std::runtime_error("Failed to allocate GPU memory for params");
+    }
+    err = cudaMemcpy(d_params_, &params_, sizeof(MIMOParams), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to copy params to device");
     }
     
     // Calculate memory sizes
@@ -331,10 +343,11 @@ void MIMODetector::allocate_gpu_memory() {
 }
 
 void MIMODetector::deallocate_gpu_memory() {
-    if (d_descriptor_) {
-        cudaFree(d_descriptor_);
-        d_descriptor_ = nullptr;
+    if (d_params_) {
+        cudaFree(d_params_);
+        d_params_ = nullptr;
     }
+    d_descriptor_ = nullptr;
     if (d_received_symbols_) {
         cudaFree(d_received_symbols_);
         d_received_symbols_ = nullptr;
@@ -361,6 +374,7 @@ framework::pipeline::ModuleMemoryRequirements MIMODetector::get_requirements() c
                       (params_.constellation_size / 4) * sizeof(float);
     }
     reqs.device_tensor_bytes = total_bytes;
+    reqs.dynamic_kernel_descriptor_bytes = sizeof(MIMODescriptor);
     reqs.alignment = 256; // CUDA memory alignment
     
     return reqs;
@@ -378,52 +392,45 @@ MIMODetector::get_output_memory_characteristics(std::string_view port_name) cons
 }
 
 cudaError_t MIMODetector::launch_mimo_detection_kernel(cudaStream_t stream) {
-    int total_elements = params_.num_subcarriers * params_.num_ofdm_symbols;
-    
-    dim3 blockSize(256);
-    dim3 gridSize((total_elements + blockSize.x - 1) / blockSize.x);
-    
     // Launch detection kernel based on algorithm
-    if (params_.algorithm == MIMODetectionAlgorithm::ZERO_FORCING) {
-        zero_forcing_detection_kernel<<<gridSize, blockSize, 0, stream>>>(
-            d_received_symbols_,
-            d_channel_matrix_,
-            d_detected_symbols_,
-            params_.num_tx_antennas,
-            params_.num_rx_antennas,
-            params_.num_subcarriers,
-            params_.num_ofdm_symbols
-        );
-    } else if (params_.algorithm == MIMODetectionAlgorithm::MMSE) {
-        mmse_detection_kernel<<<gridSize, blockSize, 0, stream>>>(
-            d_received_symbols_,
-            d_channel_matrix_,
-            d_detected_symbols_,
-            params_.noise_variance,
-            params_.num_tx_antennas,
-            params_.num_rx_antennas,
-            params_.num_subcarriers,
-            params_.num_ofdm_symbols
-        );
-    }
+    const CUresult detect_err = detect_kernel_config_.launch(stream);
     
-    cudaError_t err = cudaGetLastError();
+    cudaError_t err = (detect_err == CUDA_SUCCESS) ? cudaGetLastError() : cudaErrorLaunchFailure;
     if (err != cudaSuccess) {
         return err;
     }
     
     // Apply hard decision if constellation is QPSK
     if (params_.constellation_size == 4) {
-        int total_symbols = params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols;
-        dim3 gridSizeHard((total_symbols + blockSize.x - 1) / blockSize.x);
-        
-        qpsk_hard_decision_kernel<<<gridSizeHard, blockSize, 0, stream>>>(
-            d_detected_symbols_,
-            total_symbols
-        );
+        const CUresult hard_err = hard_kernel_config_.launch(stream);
+        if (hard_err != CUDA_SUCCESS) {
+            return cudaErrorLaunchFailure;
+        }
     }
     
     return cudaGetLastError();
+}
+
+std::span<const CUgraphNode> MIMODetector::add_node_to_graph(
+    gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+    std::span<const CUgraphNode> deps) {
+    detect_node_ = graph->add_kernel_node(deps, detect_kernel_config_.get_kernel_params());
+    if (params_.constellation_size == 4) {
+        hard_node_ = graph->add_kernel_node({&detect_node_, 1}, hard_kernel_config_.get_kernel_params());
+        return {&hard_node_, 1};
+    }
+    return {&detect_node_, 1};
+}
+
+void MIMODetector::update_graph_node_params(
+    CUgraphExec exec,
+    const framework::pipeline::DynamicParams& /*params*/) {
+    auto detect_params = detect_kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, detect_node_, &detect_params);
+    if (params_.constellation_size == 4) {
+        auto hard_params = hard_kernel_config_.get_kernel_params();
+        cuGraphExecKernelNodeSetParams(exec, hard_node_, &hard_params);
+    }
 }
 
 size_t MIMODetector::calculate_total_elements() const {

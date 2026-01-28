@@ -21,28 +21,19 @@ namespace user_scheduling {
 
 namespace {
 
-__global__ void schedule_scores_kernel(
-    const float* features,
-    const float* mean,
-    const float* std,
-    const float* weights,
-    float bias,
-    int num_ues,
-    int num_features,
-    float* scores
-) {
+__global__ void schedule_scores_kernel(const UserSchedulingDescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= num_ues) {
+    if (idx >= desc->num_ues) {
         return;
     }
 
-    float z = bias;
-    const float* ue_features = features + idx * num_features;
-    for (int f = 0; f < num_features; ++f) {
-        float norm = (ue_features[f] - mean[f]) / std[f];
-        z += norm * weights[f];
+    float z = desc->bias;
+    const float* ue_features = desc->features + idx * desc->num_features;
+    for (int f = 0; f < desc->num_features; ++f) {
+        float norm = (ue_features[f] - desc->mean[f]) / desc->std[f];
+        z += norm * desc->weights[f];
     }
-    scores[idx] = 1.0f / (1.0f + expf(-z));
+    desc->scores[idx] = 1.0f / (1.0f + expf(-z));
 }
 
 } // namespace
@@ -138,6 +129,7 @@ std::vector<std::string> UserSchedulingModule::get_output_port_names() const {
 
 framework::pipeline::ModuleMemoryRequirements UserSchedulingModule::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements requirements;
+    requirements.dynamic_kernel_descriptor_bytes = sizeof(UserSchedulingDescriptor);
     requirements.device_tensor_bytes = params_.num_ues * sizeof(float);
     requirements.alignment = 256;
     return requirements;
@@ -154,6 +146,21 @@ void UserSchedulingModule::setup_memory(const framework::pipeline::ModuleMemoryS
     mem_slice_ = memory_slice;
     d_scores_ = reinterpret_cast<float*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
+
+    kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
+    dynamic_params_cpu_ptr_ =
+        &kernel_desc_mgr_->create_dynamic_param<UserSchedulingDescriptor>(0);
+    dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<UserSchedulingDescriptor>(0);
+
+    dynamic_params_cpu_ptr_->scores = d_scores_;
+    dynamic_params_cpu_ptr_->num_ues = params_.num_ues;
+    dynamic_params_cpu_ptr_->num_features = params_.num_features;
+
+    kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(schedule_scores_kernel));
+    int threads = 256;
+    int blocks = (params_.num_ues + threads - 1) / threads;
+    kernel_config_.setup_kernel_dimensions(dim3(blocks, 1, 1), dim3(threads, 1, 1));
+    framework::pipeline::setup_kernel_arguments(kernel_config_, *dynamic_params_gpu_ptr_);
 }
 
 void UserSchedulingModule::warmup(cudaStream_t stream) {
@@ -165,7 +172,17 @@ void UserSchedulingModule::configure_io(
     cudaStream_t stream
 ) {
     (void)params;
-    (void)stream;
+    if (dynamic_params_cpu_ptr_) {
+        dynamic_params_cpu_ptr_->features = static_cast<const float*>(current_features_);
+        dynamic_params_cpu_ptr_->scores = d_scores_;
+        dynamic_params_cpu_ptr_->num_ues = params_.num_ues;
+        dynamic_params_cpu_ptr_->num_features = params_.num_features;
+        dynamic_params_cpu_ptr_->mean = d_mean_;
+        dynamic_params_cpu_ptr_->std = d_std_;
+        dynamic_params_cpu_ptr_->weights = d_weights_;
+        dynamic_params_cpu_ptr_->bias = model_bias_;
+        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    }
 }
 
 void UserSchedulingModule::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -209,6 +226,12 @@ bool UserSchedulingModule::set_model(
 
     model_bias_ = bias;
     model_loaded_ = true;
+    if (dynamic_params_cpu_ptr_) {
+        dynamic_params_cpu_ptr_->mean = d_mean_;
+        dynamic_params_cpu_ptr_->std = d_std_;
+        dynamic_params_cpu_ptr_->weights = d_weights_;
+        dynamic_params_cpu_ptr_->bias = model_bias_;
+    }
     return true;
 }
 
@@ -227,18 +250,24 @@ void UserSchedulingModule::execute(cudaStream_t stream) {
         return;
     }
 
-    int threads = 256;
-    int blocks = (params_.num_ues + threads - 1) / threads;
-    schedule_scores_kernel<<<blocks, threads, 0, stream>>>(
-        static_cast<const float*>(current_features_),
-        d_mean_,
-        d_std_,
-        d_weights_,
-        model_bias_,
-        params_.num_ues,
-        params_.num_features,
-        d_scores_
-    );
+    const CUresult launch_err = kernel_config_.launch(stream);
+    if (launch_err != CUDA_SUCCESS) {
+        throw std::runtime_error("Scheduling kernel launch failed");
+    }
+}
+
+std::span<const CUgraphNode> UserSchedulingModule::add_node_to_graph(
+    gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+    std::span<const CUgraphNode> deps) {
+    kernel_node_ = graph->add_kernel_node(deps, kernel_config_.get_kernel_params());
+    return {&kernel_node_, 1};
+}
+
+void UserSchedulingModule::update_graph_node_params(
+    CUgraphExec exec,
+    const framework::pipeline::DynamicParams& /*params*/) {
+    const auto& kernel_params = kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, kernel_node_, &kernel_params);
 }
 
 bool UserSchedulingModule::load_engine_from_file(const std::string& engine_path) {

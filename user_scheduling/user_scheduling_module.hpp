@@ -3,6 +3,10 @@
 #include "pipeline/imodule.hpp"
 #include "pipeline/istream_executor.hpp"
 #include "pipeline/iallocation_info_provider.hpp"
+#include "pipeline/igraph_node_provider.hpp"
+#include "pipeline/igraph.hpp"
+#include "pipeline/kernel_descriptor_accessor.hpp"
+#include "pipeline/kernel_launch_config.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 
@@ -26,8 +30,20 @@ struct SchedulingParams {
     std::string model_path;
 };
 
+struct UserSchedulingDescriptor {
+    const float* features;
+    const float* mean;
+    const float* std;
+    const float* weights;
+    float* scores;
+    float bias;
+    int num_ues;
+    int num_features;
+};
+
 class UserSchedulingModule : public framework::pipeline::IModule,
                              public framework::pipeline::IAllocationInfoProvider,
+                             public framework::pipeline::IGraphNodeProvider,
                              public framework::pipeline::IStreamExecutor {
 public:
     explicit UserSchedulingModule(const std::string& module_id, const SchedulingParams& params);
@@ -54,12 +70,17 @@ public:
     void warmup(cudaStream_t stream) override;
     void configure_io(const framework::pipeline::DynamicParams& params, cudaStream_t stream) override;
 
-    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return nullptr; }
+    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return this; }
     framework::pipeline::IStreamExecutor* as_stream_executor() override { return this; }
 
     void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
     void execute(cudaStream_t stream) override;
+
+    [[nodiscard]] std::span<const CUgraphNode> add_node_to_graph(
+        gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+        std::span<const CUgraphNode> deps) override;
+    void update_graph_node_params(CUgraphExec exec, const framework::pipeline::DynamicParams& params) override;
 
     bool set_model(
         const std::vector<float>& mean,
@@ -104,6 +125,12 @@ private:
     bool initialize_tensorrt_engine();
     bool load_engine_from_file(const std::string& engine_path);
     bool run_trt_inference(cudaStream_t stream);
+
+    std::unique_ptr<framework::pipeline::KernelDescriptorAccessor> kernel_desc_mgr_;
+    UserSchedulingDescriptor* dynamic_params_cpu_ptr_{nullptr};
+    UserSchedulingDescriptor* dynamic_params_gpu_ptr_{nullptr};
+    framework::pipeline::KernelLaunchConfig<1> kernel_config_;
+    CUgraphNode kernel_node_{nullptr};
 };
 
 } // namespace user_scheduling

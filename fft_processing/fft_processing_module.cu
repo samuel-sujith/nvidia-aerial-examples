@@ -10,42 +10,29 @@ using namespace framework::tensor;
 
 namespace fft_processing {
 
-// Simplified CUDA kernels with direct parameters
-__global__ void apply_windowing_kernel(
-    const cuComplex* input_data,
-    cuComplex* output_data, 
-    const float* window_function,
-    int fft_size,
-    int total_samples) {
-    
+__global__ void apply_windowing_kernel(const FFTDescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    
-    if (idx < total_samples) {
-        int sample_idx = idx % fft_size;
-        float window_val = window_function ? window_function[sample_idx] : 1.0f;
-        
-        cuComplex input_val = input_data[idx];
+    if (idx < desc->total_samples) {
+        int sample_idx = idx % desc->params->fft_size;
+        float window_val = desc->window_function ? desc->window_function[sample_idx] : 1.0f;
+
+        cuComplex input_val = desc->input_data[idx];
         cuComplex windowed_val = make_cuComplex(
             cuCrealf(input_val) * window_val,
             cuCimagf(input_val) * window_val
         );
-        
-        output_data[idx] = windowed_val;
+
+        desc->output_data[idx] = windowed_val;
     }
 }
 
-__global__ void normalize_ifft_kernel(
-    cuComplex* output_data, 
-    int fft_size,
-    int total_samples) {
-    
+__global__ void normalize_ifft_kernel(const FFTDescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    
-    if (idx < total_samples) {
-        float norm_factor = 1.0f / fft_size;
-        cuComplex output_val = output_data[idx];
-        
-        output_data[idx] = make_cuComplex(
+    if (idx < desc->total_samples) {
+        float norm_factor = 1.0f / desc->params->fft_size;
+        cuComplex output_val = desc->output_data[idx];
+
+        desc->output_data[idx] = make_cuComplex(
             cuCrealf(output_val) * norm_factor,
             cuCimagf(output_val) * norm_factor
         );
@@ -143,6 +130,22 @@ void FFTProcessor::setup_memory(const framework::pipeline::ModuleMemorySlice& me
     mem_slice_ = memory_slice;
     d_output_data_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
+    kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
+    dynamic_params_cpu_ptr_ =
+        &kernel_desc_mgr_->create_dynamic_param<FFTDescriptor>(0);
+    dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<FFTDescriptor>(0);
+    d_descriptor_ = dynamic_params_gpu_ptr_;
+
+    int total_samples = h_descriptor_.total_samples;
+    dim3 blockSize(256);
+    dim3 gridSize((total_samples + blockSize.x - 1) / blockSize.x);
+    window_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(apply_windowing_kernel));
+    window_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
+    framework::pipeline::setup_kernel_arguments(window_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    norm_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(normalize_ifft_kernel));
+    norm_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
+    framework::pipeline::setup_kernel_arguments(norm_kernel_config_, *dynamic_params_gpu_ptr_);
 }
 
 void FFTProcessor::warmup(cudaStream_t /*stream*/) {
@@ -151,9 +154,16 @@ void FFTProcessor::warmup(cudaStream_t /*stream*/) {
 
 void FFTProcessor::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
-    cudaStream_t /*stream*/
+    cudaStream_t stream
 ) {
-    // Simple configure - no descriptor copying needed with simplified kernels
+    if (dynamic_params_cpu_ptr_) {
+        dynamic_params_cpu_ptr_->input_data = d_input_data_;
+        dynamic_params_cpu_ptr_->output_data = d_output_data_;
+        dynamic_params_cpu_ptr_->window_function = d_window_function_;
+        dynamic_params_cpu_ptr_->params = d_params_;
+        dynamic_params_cpu_ptr_->total_samples = h_descriptor_.total_samples;
+        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    }
 }
 
 void FFTProcessor::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -199,13 +209,10 @@ void FFTProcessor::execute(cudaStream_t stream) {
     
     if (params_.enable_windowing) {
         // Apply windowing using simplified kernel
-        int total_samples = h_descriptor_.total_samples;
-        dim3 blockSize(256);
-        dim3 gridSize((total_samples + blockSize.x - 1) / blockSize.x);
-        
-        apply_windowing_kernel<<<gridSize, blockSize, 0, stream>>>(
-            d_input_data_, d_input_data_, d_window_function_, 
-            params_.fft_size, total_samples);
+        const CUresult window_err = window_kernel_config_.launch(stream);
+        if (window_err != CUDA_SUCCESS) {
+            throw std::runtime_error("FFT windowing kernel launch failed");
+        }
         
         err = cudaGetLastError();
         if (err != cudaSuccess) {
@@ -227,12 +234,10 @@ void FFTProcessor::execute(cudaStream_t stream) {
     
     // Apply normalization for inverse FFT if needed
     if (params_.direction == FFTDirection::INVERSE && params_.normalize) {
-        int total_samples = h_descriptor_.total_samples;
-        dim3 blockSize(256);
-        dim3 gridSize((total_samples + blockSize.x - 1) / blockSize.x);
-        
-        normalize_ifft_kernel<<<gridSize, blockSize, 0, stream>>>(
-            d_output_data_, params_.fft_size, total_samples);
+        const CUresult norm_err = norm_kernel_config_.launch(stream);
+        if (norm_err != CUDA_SUCCESS) {
+            throw std::runtime_error("FFT normalization kernel launch failed");
+        }
         
         err = cudaGetLastError();
         if (err != cudaSuccess) {
@@ -241,11 +246,44 @@ void FFTProcessor::execute(cudaStream_t stream) {
     }
 }
 
+std::span<const CUgraphNode> FFTProcessor::add_node_to_graph(
+    gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+    std::span<const CUgraphNode> deps) {
+    std::span<const CUgraphNode> last = deps;
+    if (params_.enable_windowing) {
+        window_node_ = graph->add_kernel_node(last, window_kernel_config_.get_kernel_params());
+        last = {&window_node_, 1};
+    }
+    if (params_.direction == FFTDirection::INVERSE && params_.normalize) {
+        norm_node_ = graph->add_kernel_node(last, norm_kernel_config_.get_kernel_params());
+        return {&norm_node_, 1};
+    }
+    return last;
+}
+
+void FFTProcessor::update_graph_node_params(
+    CUgraphExec exec,
+    const framework::pipeline::DynamicParams& /*params*/) {
+    if (params_.enable_windowing) {
+        auto window_params = window_kernel_config_.get_kernel_params();
+        cuGraphExecKernelNodeSetParams(exec, window_node_, &window_params);
+    }
+    if (params_.direction == FFTDirection::INVERSE && params_.normalize) {
+        auto norm_params = norm_kernel_config_.get_kernel_params();
+        cuGraphExecKernelNodeSetParams(exec, norm_node_, &norm_params);
+    }
+}
+
 void FFTProcessor::allocate_gpu_memory() {
     // Allocate GPU memory for descriptor
-    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(FFTDescriptor));
+    cudaError_t err;
+    err = cudaMalloc(&d_params_, sizeof(FFTParams));
     if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for descriptor");
+        throw std::runtime_error("Failed to allocate GPU memory for params");
+    }
+    err = cudaMemcpy(d_params_, &params_, sizeof(FFTParams), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to copy params to device");
     }
     
     // Allocate memory for input/output data
@@ -260,10 +298,11 @@ void FFTProcessor::allocate_gpu_memory() {
 }
 
 void FFTProcessor::deallocate_gpu_memory() {
-    if (d_descriptor_) {
-        cudaFree(d_descriptor_);
-        d_descriptor_ = nullptr;
+    if (d_params_) {
+        cudaFree(d_params_);
+        d_params_ = nullptr;
     }
+    d_descriptor_ = nullptr;
     if (d_input_data_) {
         cudaFree(d_input_data_);
         d_input_data_ = nullptr;
@@ -318,6 +357,7 @@ framework::pipeline::ModuleMemoryRequirements FFTProcessor::get_requirements() c
     
     size_t output_bytes = h_descriptor_.total_samples * sizeof(cuComplex);
     reqs.device_tensor_bytes = output_bytes;
+    reqs.dynamic_kernel_descriptor_bytes = sizeof(FFTDescriptor);
     reqs.alignment = 256; // CUDA memory alignment
     
     return reqs;

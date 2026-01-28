@@ -182,23 +182,21 @@ void MLChannelEstimatorTRT::set_inputs(std::span<const framework::pipeline::Port
             current_rx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
         } else if (port.name == "tx_pilots" && !port.tensors.empty()) {
             current_tx_pilots_ = static_cast<const cuComplex*>(port.tensors[0].device_ptr);
-        } else if (port.name == "channel_estimates" && !port.tensors.empty()) {
-            current_channel_estimates_ = static_cast<cuComplex*>(port.tensors[0].device_ptr);
         }
     }
 }
 
 std::vector<framework::pipeline::PortInfo> MLChannelEstimatorTRT::get_outputs() const {
     auto outputs = output_ports_;
-    if (!outputs.empty() && !outputs[0].tensors.empty() && current_channel_estimates_) {
-        outputs[0].tensors[0].device_ptr = current_channel_estimates_;
+    if (!outputs.empty() && !outputs[0].tensors.empty()) {
+        outputs[0].tensors[0].device_ptr = d_channel_estimates_;
     }
     return outputs;
 }
 
 void MLChannelEstimatorTRT::execute(cudaStream_t stream) {
     // Validate pointers
-    if (!current_rx_pilots_ || !current_tx_pilots_ || !current_channel_estimates_) {
+    if (!current_rx_pilots_ || !current_tx_pilots_ || !d_channel_estimates_) {
         throw std::runtime_error("Missing input/output pointers");
     }
 
@@ -228,7 +226,7 @@ void MLChannelEstimatorTRT::execute(cudaStream_t stream) {
     for (int i = 0; i < num_data_subcarriers; ++i) {
         channel_estimates_host[i] = make_cuComplex(ml_output[2*i], ml_output[2*i+1]);
     }
-    err = cudaMemcpyAsync(current_channel_estimates_, channel_estimates_host.data(), num_data_subcarriers * sizeof(cuComplex), cudaMemcpyHostToDevice, stream);
+    err = cudaMemcpyAsync(d_channel_estimates_, channel_estimates_host.data(), num_data_subcarriers * sizeof(cuComplex), cudaMemcpyHostToDevice, stream);
     if (err != cudaSuccess) {
         throw std::runtime_error("cudaMemcpyAsync channel_estimates failed");
     }

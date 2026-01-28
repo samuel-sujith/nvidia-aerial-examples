@@ -10,42 +10,36 @@ namespace modulation_mapping {
 
 // CUDA kernels for modulation mapping
 
-__global__ void qpsk_modulation_kernel(
-    const uint8_t* input_bits,
-    cuComplex* output_symbols,
-    int total_symbols
-) {
+__global__ void qpsk_modulation_kernel(const ModulationDescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
-    if (idx < total_symbols) {
+    if (idx < desc->total_symbols) {
         // QPSK constellation: (1+1j, 1-1j, -1+1j, -1-1j) / sqrt(2)
         int bit_idx = idx * 2;
-        uint8_t bit0 = input_bits[bit_idx];
-        uint8_t bit1 = input_bits[bit_idx + 1];
+        uint8_t bit0 = desc->input_bits[bit_idx];
+        uint8_t bit1 = desc->input_bits[bit_idx + 1];
         
         float real_part = (bit0 == 0) ? 1.0f : -1.0f;
         float imag_part = (bit1 == 0) ? 1.0f : -1.0f;
         
         // Normalize for unit energy
         float norm_factor = 1.0f / sqrtf(2.0f);
-        output_symbols[idx] = make_cuComplex(real_part * norm_factor, imag_part * norm_factor);
+        desc->output_symbols[idx] = make_cuComplex(real_part * norm_factor, imag_part * norm_factor);
     }
 }
 
-__global__ void qam16_modulation_kernel(
-    const uint8_t* input_bits,
-    cuComplex* output_symbols,
-    int total_symbols
-) {
+__global__ void qam16_modulation_kernel(const ModulationDescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
-    if (idx < total_symbols) {
+    if (idx < desc->total_symbols) {
         // 16-QAM constellation points
         int bit_idx = idx * 4;
         
         // Gray mapping for 16-QAM
-        uint8_t bits = (input_bits[bit_idx] << 3) | (input_bits[bit_idx+1] << 2) |
-                       (input_bits[bit_idx+2] << 1) | input_bits[bit_idx+3];
+        uint8_t bits = (desc->input_bits[bit_idx] << 3) |
+                       (desc->input_bits[bit_idx+1] << 2) |
+                       (desc->input_bits[bit_idx+2] << 1) |
+                       desc->input_bits[bit_idx+3];
         
         // Map 4 bits to I/Q coordinates
         float i_coord, q_coord;
@@ -70,44 +64,37 @@ __global__ void qam16_modulation_kernel(
         
         // Normalize for unit average energy
         float norm_factor = 1.0f / sqrtf(10.0f);
-        output_symbols[idx] = make_cuComplex(i_coord * norm_factor, q_coord * norm_factor);
+        desc->output_symbols[idx] = make_cuComplex(i_coord * norm_factor, q_coord * norm_factor);
     }
 }
 
-__global__ void qpsk_demodulation_kernel(
-    const cuComplex* input_symbols,
-    uint8_t* output_bits,
-    float* soft_bits,
-    float noise_variance,
-    bool generate_soft,
-    int total_symbols
-) {
+__global__ void qpsk_demodulation_kernel(const ModulationDescriptor* desc) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
-    if (idx < total_symbols) {
-        cuComplex symbol = input_symbols[idx];
+    if (idx < desc->total_symbols) {
+        cuComplex symbol = desc->input_symbols[idx];
         float real_part = cuCrealf(symbol);
         float imag_part = cuCimagf(symbol);
         
         int bit_idx = idx * 2;
         
         // Ensure we don't write out of bounds
-        if (bit_idx + 1 < total_symbols * 2) {
-            if (generate_soft && soft_bits) {
+        if (bit_idx + 1 < desc->total_symbols * 2) {
+            if (desc->params->soft_output && desc->soft_bits) {
                 // Generate Log-Likelihood Ratios (LLRs)
-                float sigma_sq = noise_variance;
+                float sigma_sq = desc->params->noise_variance;
                 float norm_factor = sqrtf(2.0f);
                 
                 // LLR for bit 0 (real part)
-                soft_bits[bit_idx] = 4.0f * real_part * norm_factor / sigma_sq;
+                desc->soft_bits[bit_idx] = 4.0f * real_part * norm_factor / sigma_sq;
                 
                 // LLR for bit 1 (imaginary part)  
-                soft_bits[bit_idx + 1] = 4.0f * imag_part * norm_factor / sigma_sq;
+                desc->soft_bits[bit_idx + 1] = 4.0f * imag_part * norm_factor / sigma_sq;
             }
             
             // Hard decision with explicit casting
-            output_bits[bit_idx] = (uint8_t)((real_part > 0.0f) ? 0 : 1);
-            output_bits[bit_idx + 1] = (uint8_t)((imag_part > 0.0f) ? 0 : 1);
+            desc->output_bits[bit_idx] = (uint8_t)((real_part > 0.0f) ? 0 : 1);
+            desc->output_bits[bit_idx + 1] = (uint8_t)((imag_part > 0.0f) ? 0 : 1);
         }
     }
 }
@@ -289,6 +276,25 @@ void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice
     }
 
     allocate_gpu_memory();
+    kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
+    dynamic_params_cpu_ptr_ =
+        &kernel_desc_mgr_->create_dynamic_param<ModulationDescriptor>(0);
+    dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<ModulationDescriptor>(0);
+    d_descriptor_ = dynamic_params_gpu_ptr_;
+
+    dim3 blockSize(256);
+    dim3 gridSize((h_descriptor_.total_symbols + blockSize.x - 1) / blockSize.x);
+    if (params_.scheme == ModulationScheme::QPSK) {
+        mod_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qpsk_modulation_kernel));
+    } else {
+        mod_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qam16_modulation_kernel));
+    }
+    mod_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
+    framework::pipeline::setup_kernel_arguments(mod_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    demod_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qpsk_demodulation_kernel));
+    demod_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
+    framework::pipeline::setup_kernel_arguments(demod_kernel_config_, *dynamic_params_gpu_ptr_);
 }
 
 void ModulationMapper::warmup(cudaStream_t /*stream*/) {
@@ -297,21 +303,22 @@ void ModulationMapper::warmup(cudaStream_t /*stream*/) {
 
 void ModulationMapper::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
-    cudaStream_t /*stream*/
+    cudaStream_t stream
 ) {
-    // Update descriptor with current tensor pointers
-    h_descriptor_.input_bits = static_cast<const uint8_t*>(current_bits_);
-    h_descriptor_.input_symbols = static_cast<const cuComplex*>(current_symbols_);
-    h_descriptor_.output_symbols = d_output_symbols_;
-    h_descriptor_.output_bits = d_output_bits_;
-    h_descriptor_.soft_bits = d_soft_bits_;
-    h_descriptor_.evm_values = d_evm_values_;
-    h_descriptor_.constellation = d_constellation_;
-    
-    // Copy descriptor to GPU
-    cudaError_t err = cudaMemcpy(d_descriptor_, &h_descriptor_, sizeof(ModulationDescriptor), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to copy modulation descriptor to GPU");
+    if (dynamic_params_cpu_ptr_) {
+        dynamic_params_cpu_ptr_->input_bits = d_input_bits_;
+        dynamic_params_cpu_ptr_->input_symbols = d_input_symbols_;
+        dynamic_params_cpu_ptr_->output_symbols = d_output_symbols_;
+        dynamic_params_cpu_ptr_->output_bits = d_output_bits_;
+        dynamic_params_cpu_ptr_->soft_bits = d_soft_bits_;
+        dynamic_params_cpu_ptr_->evm_values = d_evm_values_;
+        dynamic_params_cpu_ptr_->constellation = d_constellation_;
+        dynamic_params_cpu_ptr_->params = d_params_;
+        dynamic_params_cpu_ptr_->total_symbols = h_descriptor_.total_symbols;
+        dynamic_params_cpu_ptr_->total_bits = h_descriptor_.total_bits;
+        dynamic_params_cpu_ptr_->bits_per_symbol = h_descriptor_.bits_per_symbol;
+        dynamic_params_cpu_ptr_->constellation_size = h_descriptor_.constellation_size;
+        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
     }
 }
 
@@ -395,9 +402,14 @@ void ModulationMapper::execute(cudaStream_t stream) {
 
 void ModulationMapper::allocate_gpu_memory() {
     // Allocate GPU memory for descriptor
-    cudaError_t err = cudaMalloc(&d_descriptor_, sizeof(ModulationDescriptor));
+    cudaError_t err;
+    err = cudaMalloc(&d_params_, sizeof(ModulationParams));
     if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for descriptor");
+        throw std::runtime_error("Failed to allocate GPU memory for params");
+    }
+    err = cudaMemcpy(d_params_, &params_, sizeof(ModulationParams), cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        throw std::runtime_error("Failed to copy params to device");
     }
     
     // Calculate memory sizes
@@ -460,10 +472,11 @@ void ModulationMapper::allocate_gpu_memory() {
 }
 
 void ModulationMapper::deallocate_gpu_memory() {
-    if (d_descriptor_) {
-        cudaFree(d_descriptor_);
-        d_descriptor_ = nullptr;
+    if (d_params_) {
+        cudaFree(d_params_);
+        d_params_ = nullptr;
     }
+    d_descriptor_ = nullptr;
     if (d_input_bits_) {
         cudaFree(d_input_bits_);
         d_input_bits_ = nullptr;
@@ -499,6 +512,7 @@ framework::pipeline::ModuleMemoryRequirements ModulationMapper::get_requirements
         }
     }
     reqs.device_tensor_bytes = total_bytes;
+    reqs.dynamic_kernel_descriptor_bytes = sizeof(ModulationDescriptor);
     reqs.alignment = 256; // CUDA memory alignment
     
     return reqs;
@@ -515,36 +529,20 @@ cudaError_t ModulationMapper::launch_modulation_kernel(cudaStream_t stream) {
     dim3 blockSize(256);
     
     if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
-        dim3 gridSize((h_descriptor_.total_symbols + blockSize.x - 1) / blockSize.x);
-        
-        if (params_.scheme == ModulationScheme::QPSK) {
-            qpsk_modulation_kernel<<<gridSize, blockSize, 0, stream>>>(
-                d_input_bits_,
-                d_output_symbols_,
-                h_descriptor_.total_symbols
-            );
-        } else if (params_.scheme == ModulationScheme::QAM16) {
-            qam16_modulation_kernel<<<gridSize, blockSize, 0, stream>>>(
-                d_input_bits_,
-                d_output_symbols_,
-                h_descriptor_.total_symbols
-            );
+        const CUresult mod_err = mod_kernel_config_.launch(stream);
+        if (mod_err != CUDA_SUCCESS) {
+            throw std::runtime_error("Modulation kernel launch failed");
         }
         // Add other modulation schemes as needed
     }
     
     if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
-        dim3 gridSize((h_descriptor_.total_symbols + blockSize.x - 1) / blockSize.x);
         cudaError_t kernel_err = cudaSuccess;
         if (params_.scheme == ModulationScheme::QPSK) {
-            qpsk_demodulation_kernel<<<gridSize, blockSize, 0, stream>>>(
-                d_input_symbols_,
-                d_output_bits_,
-                d_soft_bits_,
-                params_.noise_variance,
-                params_.soft_output,
-                h_descriptor_.total_symbols
-            );
+            const CUresult demod_err = demod_kernel_config_.launch(stream);
+            if (demod_err != CUDA_SUCCESS) {
+                throw std::runtime_error("Demodulation kernel launch failed");
+            }
             kernel_err = cudaGetLastError();
             if (kernel_err != cudaSuccess) {
                 throw std::runtime_error(std::string("QPSK demodulation kernel launch failed: ") + cudaGetErrorString(kernel_err));
@@ -559,6 +557,34 @@ cudaError_t ModulationMapper::launch_modulation_kernel(cudaStream_t stream) {
     }
     
     return cudaSuccess;
+}
+
+std::span<const CUgraphNode> ModulationMapper::add_node_to_graph(
+    gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+    std::span<const CUgraphNode> deps) {
+    std::span<const CUgraphNode> last = deps;
+    if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
+        mod_node_ = graph->add_kernel_node(last, mod_kernel_config_.get_kernel_params());
+        last = {&mod_node_, 1};
+    }
+    if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
+        demod_node_ = graph->add_kernel_node(last, demod_kernel_config_.get_kernel_params());
+        return {&demod_node_, 1};
+    }
+    return last;
+}
+
+void ModulationMapper::update_graph_node_params(
+    CUgraphExec exec,
+    const framework::pipeline::DynamicParams& /*params*/) {
+    if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
+        auto mod_params = mod_kernel_config_.get_kernel_params();
+        cuGraphExecKernelNodeSetParams(exec, mod_node_, &mod_params);
+    }
+    if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
+        auto demod_params = demod_kernel_config_.get_kernel_params();
+        cuGraphExecKernelNodeSetParams(exec, demod_node_, &demod_params);
+    }
 }
 
 void ModulationMapper::initialize_constellation() {

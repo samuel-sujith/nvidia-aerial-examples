@@ -155,6 +155,12 @@ private:
     void* d_output_buffer_{nullptr};
     void* d_module_tensor_{nullptr};
     size_t module_tensor_bytes_{0};
+    std::byte* static_desc_cpu_{nullptr};
+    std::byte* static_desc_gpu_{nullptr};
+    std::byte* dynamic_desc_cpu_{nullptr};
+    std::byte* dynamic_desc_gpu_{nullptr};
+    size_t static_desc_bytes_{0};
+    size_t dynamic_desc_bytes_{0};
     
     /**
      * @brief Process data on GPU device

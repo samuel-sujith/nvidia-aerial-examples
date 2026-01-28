@@ -15,6 +15,29 @@ FFTProcessingPipeline::FFTProcessingPipeline(
     fft_processor_ = std::make_unique<FFTProcessor>(pipeline_id_ + "_processor", fft_params_);
 }
 
+FFTProcessingPipeline::~FFTProcessingPipeline() {
+    if (device_memory_) {
+        cudaFree(device_memory_);
+        device_memory_ = nullptr;
+    }
+    if (static_desc_cpu_) {
+        cudaFreeHost(static_desc_cpu_);
+        static_desc_cpu_ = nullptr;
+    }
+    if (static_desc_gpu_) {
+        cudaFree(static_desc_gpu_);
+        static_desc_gpu_ = nullptr;
+    }
+    if (dynamic_desc_cpu_) {
+        cudaFreeHost(dynamic_desc_cpu_);
+        dynamic_desc_cpu_ = nullptr;
+    }
+    if (dynamic_desc_gpu_) {
+        cudaFree(dynamic_desc_gpu_);
+        dynamic_desc_gpu_ = nullptr;
+    }
+}
+
 void FFTProcessingPipeline::setup() {
     if (!fft_processor_) {
         throw std::runtime_error("FFT processor not initialized");
@@ -80,6 +103,8 @@ void FFTProcessingPipeline::execute_graph(cudaStream_t stream) {
 void FFTProcessingPipeline::allocate_pipeline_memory() {
     auto requirements = fft_processor_->get_requirements();
     memory_size_ = requirements.device_tensor_bytes;
+    static_desc_bytes_ = requirements.static_kernel_descriptor_bytes;
+    dynamic_desc_bytes_ = requirements.dynamic_kernel_descriptor_bytes;
     cudaError_t err = cudaMalloc(&device_memory_, memory_size_);
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate pipeline device memory");
@@ -88,6 +113,20 @@ void FFTProcessingPipeline::allocate_pipeline_memory() {
     module_slice_ = {};
     module_slice_.device_tensor_ptr = reinterpret_cast<std::byte*>(device_memory_);
     module_slice_.device_tensor_bytes = memory_size_;
+    if (static_desc_bytes_ > 0) {
+        cudaMallocHost(&static_desc_cpu_, static_desc_bytes_);
+        cudaMalloc(&static_desc_gpu_, static_desc_bytes_);
+        module_slice_.static_kernel_descriptor_cpu_ptr = static_desc_cpu_;
+        module_slice_.static_kernel_descriptor_gpu_ptr = static_desc_gpu_;
+        module_slice_.static_kernel_descriptor_bytes = static_desc_bytes_;
+    }
+    if (dynamic_desc_bytes_ > 0) {
+        cudaMallocHost(&dynamic_desc_cpu_, dynamic_desc_bytes_);
+        cudaMalloc(&dynamic_desc_gpu_, dynamic_desc_bytes_);
+        module_slice_.dynamic_kernel_descriptor_cpu_ptr = dynamic_desc_cpu_;
+        module_slice_.dynamic_kernel_descriptor_gpu_ptr = dynamic_desc_gpu_;
+        module_slice_.dynamic_kernel_descriptor_bytes = dynamic_desc_bytes_;
+    }
 
 }
 

@@ -256,6 +256,7 @@ framework::pipeline::ModuleMemoryRequirements NeuralBeamformer::get_requirements
     total_size += h_descriptor_.num_users * h_descriptor_.num_subcarriers * sizeof(float);
 
     requirements.device_tensor_bytes = total_size;
+    requirements.dynamic_kernel_descriptor_bytes = sizeof(BeamformingDescriptor);
     requirements.alignment = 256; // CUDA memory alignment
     
     return requirements;
@@ -357,10 +358,6 @@ void NeuralBeamformer::allocate_gpu_memory() {
     err = cudaMalloc(&d_steering_vectors_, h_descriptor_.num_antennas * 360 * sizeof(cuComplex));
     if (err != cudaSuccess) throw std::runtime_error("Failed to allocate steering vectors memory");
     
-    // Descriptor
-    err = cudaMalloc(&d_descriptor_, sizeof(BeamformingDescriptor));
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate descriptor memory");
-    
     // Update descriptor with device pointers
     h_descriptor_.input_symbols = d_input_symbols_;
     h_descriptor_.output_symbols = d_output_symbols_;
@@ -370,9 +367,6 @@ void NeuralBeamformer::allocate_gpu_memory() {
     h_descriptor_.steering_vectors = d_steering_vectors_;
     h_descriptor_.performance_metrics = d_performance_metrics_;
     
-    // Copy descriptor to GPU
-    err = cudaMemcpy(d_descriptor_, &h_descriptor_, sizeof(BeamformingDescriptor), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) throw std::runtime_error("Failed to copy beamforming descriptor to GPU");
 }
 
 void NeuralBeamformer::deallocate_gpu_memory() {
@@ -380,7 +374,7 @@ void NeuralBeamformer::deallocate_gpu_memory() {
     cudaFree(d_channel_matrix_);
     cudaFree(d_covariance_matrix_);
     cudaFree(d_steering_vectors_);
-    cudaFree(d_descriptor_);
+    d_descriptor_ = nullptr;
     
     d_input_symbols_ = nullptr;
     d_output_symbols_ = nullptr;
@@ -473,6 +467,29 @@ void NeuralBeamformer::execute(cudaStream_t stream) {
     if (!success) {
         throw std::runtime_error("Failed to calculate performance metrics");
     }
+}
+
+std::span<const CUgraphNode> NeuralBeamformer::add_node_to_graph(
+    gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+    std::span<const CUgraphNode> deps) {
+    if (params_.algorithm == BeamformingAlgorithm::NEURAL_NETWORK) {
+        throw std::runtime_error("Graph mode not supported for neural beamforming in this example");
+    }
+    weight_node_ = graph->add_kernel_node(deps, weight_kernel_config_.get_kernel_params());
+    apply_node_ = graph->add_kernel_node({&weight_node_, 1}, apply_kernel_config_.get_kernel_params());
+    sinr_node_ = graph->add_kernel_node({&apply_node_, 1}, sinr_kernel_config_.get_kernel_params());
+    return {&sinr_node_, 1};
+}
+
+void NeuralBeamformer::update_graph_node_params(
+    CUgraphExec exec,
+    const framework::pipeline::DynamicParams& /*params*/) {
+    auto weight_params = weight_kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, weight_node_, &weight_params);
+    auto apply_params = apply_kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, apply_node_, &apply_params);
+    auto sinr_params = sinr_kernel_config_.get_kernel_params();
+    cuGraphExecKernelNodeSetParams(exec, sinr_node_, &sinr_params);
 }
 
 bool NeuralBeamformer::compute_conventional_weights(cudaStream_t stream) {
@@ -719,6 +736,46 @@ void NeuralBeamformer::setup_memory(const framework::pipeline::ModuleMemorySlice
     offset += h_descriptor_.num_users * h_descriptor_.num_subcarriers * sizeof(float);
 
     allocate_gpu_memory();
+    kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
+    dynamic_params_cpu_ptr_ =
+        &kernel_desc_mgr_->create_dynamic_param<BeamformingDescriptor>(0);
+    dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<BeamformingDescriptor>(0);
+    d_descriptor_ = dynamic_params_gpu_ptr_;
+
+    dim3 weightBlock(16, 4);
+    dim3 weightGrid(
+        (h_descriptor_.num_subcarriers + weightBlock.x - 1) / weightBlock.x,
+        (h_descriptor_.num_users + weightBlock.y - 1) / weightBlock.y
+    );
+    if (params_.algorithm == BeamformingAlgorithm::ZERO_FORCING) {
+        weight_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(zero_forcing_beamforming_kernel));
+        weight_kernel_config_.setup_kernel_dimensions(
+            dim3((h_descriptor_.num_subcarriers + 31) / 32, 1, 1),
+            dim3(32, 1, 1));
+    } else {
+        weight_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(mvdr_weight_computation_kernel));
+        weight_kernel_config_.setup_kernel_dimensions(weightGrid, weightBlock);
+    }
+    framework::pipeline::setup_kernel_arguments(weight_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    dim3 applyBlock(8, 4, 4);
+    dim3 applyGrid(
+        (h_descriptor_.num_subcarriers + applyBlock.x - 1) / applyBlock.x,
+        (h_descriptor_.num_users + applyBlock.y - 1) / applyBlock.y,
+        (h_descriptor_.num_ofdm_symbols + applyBlock.z - 1) / applyBlock.z
+    );
+    apply_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(conventional_beamforming_kernel));
+    apply_kernel_config_.setup_kernel_dimensions(applyGrid, applyBlock);
+    framework::pipeline::setup_kernel_arguments(apply_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    dim3 sinrBlock(16, 4);
+    dim3 sinrGrid(
+        (h_descriptor_.num_subcarriers + sinrBlock.x - 1) / sinrBlock.x,
+        (h_descriptor_.num_users + sinrBlock.y - 1) / sinrBlock.y
+    );
+    sinr_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(calculate_sinr_kernel));
+    sinr_kernel_config_.setup_kernel_dimensions(sinrGrid, sinrBlock);
+    framework::pipeline::setup_kernel_arguments(sinr_kernel_config_, *dynamic_params_gpu_ptr_);
 }
 
 void NeuralBeamformer::warmup(cudaStream_t stream) {
@@ -744,10 +801,9 @@ void NeuralBeamformer::configure_io(
     // For now, parameters are set during construction
     // In a full implementation, this would update descriptor based on dynamic params
     
-    // Ensure descriptor is ready for execution
-    if (d_descriptor_) {
-        cudaMemcpyAsync(d_descriptor_, &h_descriptor_, sizeof(BeamformingDescriptor),
-                       cudaMemcpyHostToDevice, stream);
+    if (dynamic_params_cpu_ptr_) {
+        *dynamic_params_cpu_ptr_ = h_descriptor_;
+        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
     }
 }
 

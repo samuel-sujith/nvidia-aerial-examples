@@ -17,6 +17,10 @@
 #include "pipeline/imodule.hpp"
 #include "pipeline/istream_executor.hpp"
 #include "pipeline/iallocation_info_provider.hpp"
+#include "pipeline/igraph_node_provider.hpp"
+#include "pipeline/igraph.hpp"
+#include "pipeline/kernel_descriptor_accessor.hpp"
+#include "pipeline/kernel_launch_config.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "tensor/data_types.hpp"
@@ -83,6 +87,7 @@ struct ChannelEstDescriptor {
 /// Channel estimator module implementing the framework interface
 class ChannelEstimator final : public IChannelEstimator, public framework::pipeline::IModule, 
                               public framework::pipeline::IAllocationInfoProvider,
+                              public framework::pipeline::IGraphNodeProvider,
                               public framework::pipeline::IStreamExecutor {
 public:
     /**
@@ -127,11 +132,16 @@ public:
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
     
     // IModule casting methods
-    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return nullptr; }
+    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return this; }
     framework::pipeline::IStreamExecutor* as_stream_executor() override { return this; }
     
     // IStreamExecutor interface  
     void execute(cudaStream_t stream) override;
+
+    [[nodiscard]] std::span<const CUgraphNode> add_node_to_graph(
+        gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+        std::span<const CUgraphNode> deps) override;
+    void update_graph_node_params(CUgraphExec exec, const framework::pipeline::DynamicParams& params) override;
 
 private:
     std::string module_id_;
@@ -158,6 +168,14 @@ private:
     const cuComplex* current_rx_pilots_{nullptr};
     const cuComplex* current_tx_pilots_{nullptr};
     cuComplex* current_channel_estimates_{nullptr};
+
+    std::unique_ptr<framework::pipeline::KernelDescriptorAccessor> kernel_desc_mgr_;
+    ChannelEstDescriptor* dynamic_params_cpu_ptr_{nullptr};
+    ChannelEstDescriptor* dynamic_params_gpu_ptr_{nullptr};
+    framework::pipeline::KernelLaunchConfig<1> ls_kernel_config_;
+    framework::pipeline::KernelLaunchConfig<1> interp_kernel_config_;
+    CUgraphNode ls_node_{nullptr};
+    CUgraphNode interp_node_{nullptr};
     
     void allocate_gpu_memory();
     void deallocate_gpu_memory();

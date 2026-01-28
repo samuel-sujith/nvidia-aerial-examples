@@ -4,6 +4,10 @@
 #include "pipeline/imodule.hpp"
 #include "pipeline/istream_executor.hpp"
 #include "pipeline/iallocation_info_provider.hpp"
+#include "pipeline/igraph_node_provider.hpp"
+#include "pipeline/igraph.hpp"
+#include "pipeline/kernel_descriptor_accessor.hpp"
+#include "pipeline/kernel_launch_config.hpp"
 #include "pipeline/types.hpp"
 #include "tensor/tensor_info.hpp"
 #include "tensor/data_types.hpp"
@@ -111,6 +115,7 @@ struct BeamformingDescriptor {
  */
 class NeuralBeamformer : public framework::pipeline::IModule,
                         public framework::pipeline::IAllocationInfoProvider,
+                        public framework::pipeline::IGraphNodeProvider,
                         public framework::pipeline::IStreamExecutor {
 public:
     /**
@@ -154,13 +159,18 @@ public:
     ) override;
     
     // IModule casting methods
-    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return nullptr; }
+    framework::pipeline::IGraphNodeProvider* as_graph_node_provider() override { return this; }
     framework::pipeline::IStreamExecutor* as_stream_executor() override { return this; }
     
     // IStreamExecutor interface
     void set_inputs(std::span<const framework::pipeline::PortInfo> inputs) override;
     [[nodiscard]] std::vector<framework::pipeline::PortInfo> get_outputs() const override;
     void execute(cudaStream_t stream) override;
+
+    [[nodiscard]] std::span<const CUgraphNode> add_node_to_graph(
+        gsl_lite::not_null<framework::pipeline::IGraph*> graph,
+        std::span<const CUgraphNode> deps) override;
+    void update_graph_node_params(CUgraphExec exec, const framework::pipeline::DynamicParams& params) override;
     
     /**
      * @brief Get the module identifier
@@ -224,6 +234,16 @@ private:
     // Current input pointers from framework
     const void* current_input_symbols_{nullptr};
     const void* current_channel_estimates_{nullptr};
+
+    std::unique_ptr<framework::pipeline::KernelDescriptorAccessor> kernel_desc_mgr_;
+    BeamformingDescriptor* dynamic_params_cpu_ptr_{nullptr};
+    BeamformingDescriptor* dynamic_params_gpu_ptr_{nullptr};
+    framework::pipeline::KernelLaunchConfig<1> weight_kernel_config_;
+    framework::pipeline::KernelLaunchConfig<1> apply_kernel_config_;
+    framework::pipeline::KernelLaunchConfig<1> sinr_kernel_config_;
+    CUgraphNode apply_node_{nullptr};
+    CUgraphNode weight_node_{nullptr};
+    CUgraphNode sinr_node_{nullptr};
     
     /**
      * @brief Allocate GPU memory for beamforming processing
