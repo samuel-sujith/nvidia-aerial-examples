@@ -57,6 +57,7 @@ target_include_directories(neural_beamforming_module
 target_link_libraries(neural_beamforming_module
     PUBLIC
         CUDA::cudart
+        CUDA::cuda_driver
         CUDA::cufft
         CUDA::cublas
         framework::pipeline
@@ -92,6 +93,7 @@ target_link_libraries(neural_beamforming_pipeline
     PUBLIC
         neural_beamforming_module
         CUDA::cudart
+        CUDA::cuda_driver
         CUDA::cufft
         CUDA::cublas
         framework::pipeline
@@ -170,6 +172,7 @@ target_link_libraries(neural_beamforming_example
         neural_beamforming_pipeline
         neural_beamforming_module
         CUDA::cudart
+        CUDA::cuda_driver
         CUDA::cufft
         CUDA::cublas
 )
