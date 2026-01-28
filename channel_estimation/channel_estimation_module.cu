@@ -113,7 +113,9 @@ void ChannelEstimator::setup_port_info() {
     );
 }
 
-void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
+void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    mem_slice_ = memory_slice;
+    d_channel_estimates_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
 }
 
@@ -211,6 +213,7 @@ void ChannelEstimator::allocate_gpu_memory() {
     // Buffers
     size_t pilot_size = params_.num_resource_blocks * 12ULL / params_.pilot_spacing * sizeof(cuComplex);
     size_t estimates_size = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
+    (void)estimates_size;
     
     err = cudaMalloc(&d_pilot_symbols_, pilot_size);
     if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_pilot_symbols_ failed");
@@ -218,9 +221,6 @@ void ChannelEstimator::allocate_gpu_memory() {
     err = cudaMalloc(&d_pilot_estimates_, pilot_size);
     if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_pilot_estimates_ failed");
     cudaMemset(d_pilot_estimates_, 0, pilot_size);  // Zero init
-    
-    err = cudaMalloc(&d_channel_estimates_, estimates_size);
-    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_channel_estimates_ failed");
     
     std::cout << "[DEBUG] Allocated: d_params_=" << d_params_ 
               << " d_pilot_estimates_=" << d_pilot_estimates_ << std::endl;
@@ -232,7 +232,7 @@ void ChannelEstimator::deallocate_gpu_memory() {
     if (d_descriptor_) { cudaFree(d_descriptor_); d_descriptor_ = nullptr; }
     if (d_pilot_symbols_) { cudaFree(d_pilot_symbols_); d_pilot_symbols_ = nullptr; }
     if (d_pilot_estimates_) { cudaFree(d_pilot_estimates_); d_pilot_estimates_ = nullptr; }
-    if (d_channel_estimates_) { cudaFree(d_channel_estimates_); d_channel_estimates_ = nullptr; }
+    d_channel_estimates_ = nullptr;
 }
 
 cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stream) {
@@ -254,18 +254,8 @@ cudaError_t ChannelEstimator::launch_channel_estimation_kernel(cudaStream_t stre
 framework::pipeline::ModuleMemoryRequirements ChannelEstimator::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements reqs{};
     
-    // Calculate memory requirements based on parameters
-    size_t total_bytes = 0;
-    
-    // Memory for pilot symbols
-    total_bytes += params_.num_rx_antennas * params_.num_ofdm_symbols * 
-                   params_.num_resource_blocks * sizeof(cuComplex);
-    
-    // Memory for channel estimates
-    total_bytes += params_.num_rx_antennas * params_.num_ofdm_symbols * 
-                   params_.num_resource_blocks * 12 * sizeof(cuComplex);
-    
-    reqs.device_tensor_bytes = total_bytes;
+    size_t estimates_bytes = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
+    reqs.device_tensor_bytes = estimates_bytes;
     reqs.alignment = 256; // CUDA memory alignment
     
     return reqs;

@@ -123,7 +123,6 @@ MIMODetector::MIMODetector(const std::string& module_id, const MIMOParams& param
     h_descriptor_.params = &params_;
     h_descriptor_.total_resource_elements = calculate_total_elements();
     
-    allocate_gpu_memory();
     setup_port_info();
 }
 
@@ -201,8 +200,20 @@ MIMODetector::get_output_tensor_info(std::string_view port_name) const {
     throw std::invalid_argument("Unknown output port: " + std::string(port_name));
 }
 
-void MIMODetector::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
-    // Memory is already allocated in constructor
+void MIMODetector::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    mem_slice_ = memory_slice;
+    std::byte* base = mem_slice_.device_tensor_ptr;
+    size_t offset = 0;
+
+    d_detected_symbols_ = reinterpret_cast<cuComplex*>(base + offset);
+    offset += h_descriptor_.total_resource_elements * sizeof(cuComplex);
+
+    if (params_.soft_output) {
+        d_soft_bits_ = reinterpret_cast<float*>(base + offset);
+        offset += h_descriptor_.total_resource_elements * sizeof(float);
+    }
+
+    allocate_gpu_memory();
 }
 
 void MIMODetector::warmup(cudaStream_t /*stream*/) {
@@ -303,11 +314,7 @@ void MIMODetector::allocate_gpu_memory() {
         throw std::runtime_error("Failed to allocate GPU memory for channel matrix");
     }
     
-    // Allocate memory for detected symbols
-    err = cudaMalloc(&d_detected_symbols_, detected_size);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for detected symbols");
-    }
+    (void)detected_size;
     
     // Allocate memory for temporary matrix operations
     err = cudaMalloc(&d_temp_matrix_, temp_matrix_size);
@@ -319,10 +326,7 @@ void MIMODetector::allocate_gpu_memory() {
     if (params_.soft_output) {
         size_t soft_bits_size = params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols * 
                                (params_.constellation_size / 4) * sizeof(float); // bits per symbol
-        err = cudaMalloc(&d_soft_bits_, soft_bits_size);
-        if (err != cudaSuccess) {
-            throw std::runtime_error("Failed to allocate GPU memory for soft bits");
-        }
+        (void)soft_bits_size;
     }
 }
 
@@ -339,47 +343,23 @@ void MIMODetector::deallocate_gpu_memory() {
         cudaFree(d_channel_matrix_);
         d_channel_matrix_ = nullptr;
     }
-    if (d_detected_symbols_) {
-        cudaFree(d_detected_symbols_);
-        d_detected_symbols_ = nullptr;
-    }
+    d_detected_symbols_ = nullptr;
     if (d_temp_matrix_) {
         cudaFree(d_temp_matrix_);
         d_temp_matrix_ = nullptr;
     }
-    if (d_soft_bits_) {
-        cudaFree(d_soft_bits_);
-        d_soft_bits_ = nullptr;
-    }
+    d_soft_bits_ = nullptr;
 }
 
 framework::pipeline::ModuleMemoryRequirements MIMODetector::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements reqs{};
     
-    // Calculate memory requirements based on parameters
     size_t total_bytes = 0;
-    
-    // Memory for received symbols
-    total_bytes += params_.num_rx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols * sizeof(cuComplex);
-    
-    // Memory for channel matrix
-    total_bytes += params_.num_rx_antennas * params_.num_tx_antennas * params_.num_subcarriers * sizeof(cuComplex);
-    
-    // Memory for detected symbols
     total_bytes += params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols * sizeof(cuComplex);
-    
-    // Memory for temporary matrix operations
-    total_bytes += params_.num_tx_antennas * params_.num_tx_antennas * params_.num_subcarriers * sizeof(cuComplex);
-    
-    // Memory for soft bits if enabled
     if (params_.soft_output) {
-        total_bytes += params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols * 
+        total_bytes += params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols *
                       (params_.constellation_size / 4) * sizeof(float);
     }
-    
-    // Memory for descriptor
-    total_bytes += sizeof(MIMODescriptor);
-    
     reqs.device_tensor_bytes = total_bytes;
     reqs.alignment = 256; // CUDA memory alignment
     

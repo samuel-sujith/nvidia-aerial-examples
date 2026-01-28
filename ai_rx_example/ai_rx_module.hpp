@@ -69,6 +69,7 @@ public:
 private:
 	std::string module_id_;
 	AiRxParams params_;
+	framework::pipeline::ModuleMemorySlice mem_slice_;
 
 	// Port info
 	std::vector<framework::pipeline::PortInfo> input_ports_;

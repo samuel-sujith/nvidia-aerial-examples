@@ -147,6 +147,7 @@ public:
 private:
     std::string module_id_;
     ModulationParams params_;
+    framework::pipeline::ModuleMemorySlice mem_slice_;
     
     // Port information
     std::vector<framework::pipeline::PortInfo> input_ports_;

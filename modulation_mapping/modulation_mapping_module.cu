@@ -150,7 +150,6 @@ ModulationMapper::ModulationMapper(const std::string& module_id, const Modulatio
     h_descriptor_.bits_per_symbol = get_bits_per_symbol();
     h_descriptor_.constellation_size = get_constellation_size();
     
-    allocate_gpu_memory();
     setup_port_info();
     initialize_constellation();
 }
@@ -270,8 +269,26 @@ ModulationMapper::get_output_tensor_info(std::string_view port_name) const {
     throw std::invalid_argument("Unknown output port: " + std::string(port_name));
 }
 
-void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
-    // Memory is already allocated in constructor
+void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    mem_slice_ = memory_slice;
+    std::byte* base = mem_slice_.device_tensor_ptr;
+    size_t offset = 0;
+
+    if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
+        d_output_symbols_ = reinterpret_cast<cuComplex*>(base + offset);
+        offset += h_descriptor_.total_symbols * sizeof(cuComplex);
+    }
+    if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
+        d_output_bits_ = reinterpret_cast<uint8_t*>(base + offset);
+        offset += h_descriptor_.total_bits * sizeof(uint8_t);
+
+        if (params_.soft_output) {
+            d_soft_bits_ = reinterpret_cast<float*>(base + offset);
+            offset += h_descriptor_.total_bits * sizeof(float);
+        }
+    }
+
+    allocate_gpu_memory();
 }
 
 void ModulationMapper::warmup(cudaStream_t /*stream*/) {
@@ -406,18 +423,12 @@ void ModulationMapper::allocate_gpu_memory() {
     
     // Allocate memory for output symbols
     if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
-        err = cudaMalloc(&d_output_symbols_, symbols_size);
-        if (err != cudaSuccess) {
-            throw std::runtime_error("Failed to allocate GPU memory for output symbols");
-        }
+    (void)symbols_size;
     }
     
     // Allocate memory for output bits
     if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
-        err = cudaMalloc(&d_output_bits_, bits_size);
-        if (err != cudaSuccess) {
-            throw std::runtime_error("Failed to allocate GPU memory for output bits");
-        }
+    (void)bits_size;
         
         // Initialize output bits memory to zero
         err = cudaMemset(d_output_bits_, 0, bits_size);
@@ -428,10 +439,7 @@ void ModulationMapper::allocate_gpu_memory() {
         // Allocate soft bits if needed
         if (params_.soft_output) {
             size_t soft_bits_size = h_descriptor_.total_bits * sizeof(float);
-            err = cudaMalloc(&d_soft_bits_, soft_bits_size);
-            if (err != cudaSuccess) {
-                throw std::runtime_error("Failed to allocate GPU memory for soft bits");
-            }
+            (void)soft_bits_size;
         }
     }
     
@@ -464,18 +472,9 @@ void ModulationMapper::deallocate_gpu_memory() {
         cudaFree(d_input_symbols_);
         d_input_symbols_ = nullptr;
     }
-    if (d_output_symbols_) {
-        cudaFree(d_output_symbols_);
-        d_output_symbols_ = nullptr;
-    }
-    if (d_output_bits_) {
-        cudaFree(d_output_bits_);
-        d_output_bits_ = nullptr;
-    }
-    if (d_soft_bits_) {
-        cudaFree(d_soft_bits_);
-        d_soft_bits_ = nullptr;
-    }
+    d_output_symbols_ = nullptr;
+    d_output_bits_ = nullptr;
+    d_soft_bits_ = nullptr;
     if (d_evm_values_) {
         cudaFree(d_evm_values_);
         d_evm_values_ = nullptr;
@@ -489,29 +488,16 @@ void ModulationMapper::deallocate_gpu_memory() {
 framework::pipeline::ModuleMemoryRequirements ModulationMapper::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements reqs{};
     
-    // Calculate memory requirements based on parameters
     size_t total_bytes = 0;
-    
-    // Memory for bits and symbols
-    total_bytes += h_descriptor_.total_bits * sizeof(uint8_t) * 2; // input and output bits
-    total_bytes += h_descriptor_.total_symbols * sizeof(cuComplex) * 2; // input and output symbols
-    
-    // Memory for soft bits if enabled
-    if (params_.soft_output) {
-        total_bytes += h_descriptor_.total_bits * sizeof(float);
+    if (params_.mode == ProcessingMode::MODULATION || params_.mode == ProcessingMode::BOTH) {
+        total_bytes += h_descriptor_.total_symbols * sizeof(cuComplex);
     }
-    
-    // Memory for constellation
-    total_bytes += h_descriptor_.constellation_size * sizeof(cuComplex);
-    
-    // Memory for EVM if enabled
-    if (params_.enable_evm_calculation) {
-        total_bytes += h_descriptor_.total_symbols * sizeof(float);
+    if (params_.mode == ProcessingMode::DEMODULATION || params_.mode == ProcessingMode::BOTH) {
+        total_bytes += h_descriptor_.total_bits * sizeof(uint8_t);
+        if (params_.soft_output) {
+            total_bytes += h_descriptor_.total_bits * sizeof(float);
+        }
     }
-    
-    // Memory for descriptor
-    total_bytes += sizeof(ModulationDescriptor);
-    
     reqs.device_tensor_bytes = total_bytes;
     reqs.alignment = 256; // CUDA memory alignment
     

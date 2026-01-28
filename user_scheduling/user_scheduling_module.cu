@@ -50,7 +50,6 @@ __global__ void schedule_scores_kernel(
 UserSchedulingModule::UserSchedulingModule(const std::string& module_id, const SchedulingParams& params)
     : module_id_(module_id), params_(params) {
     setup_port_info();
-    allocate_gpu_memory();
     if (!params_.model_path.empty()) {
         auto dot = params_.model_path.find_last_of('.');
         std::string ext = (dot == std::string::npos) ? "" : params_.model_path.substr(dot);
@@ -84,11 +83,7 @@ void UserSchedulingModule::setup_port_info() {
 }
 
 void UserSchedulingModule::allocate_gpu_memory() {
-    cudaError_t err = cudaMalloc(&d_scores_, params_.num_ues * sizeof(float));
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for scores");
-    }
-    err = cudaMalloc(&d_mean_, params_.num_features * sizeof(float));
+    cudaError_t err = cudaMalloc(&d_mean_, params_.num_features * sizeof(float));
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate GPU memory for mean");
     }
@@ -103,10 +98,6 @@ void UserSchedulingModule::allocate_gpu_memory() {
 }
 
 void UserSchedulingModule::deallocate_gpu_memory() {
-    if (d_scores_) {
-        cudaFree(d_scores_);
-        d_scores_ = nullptr;
-    }
     if (d_mean_) {
         cudaFree(d_mean_);
         d_mean_ = nullptr;
@@ -147,8 +138,7 @@ std::vector<std::string> UserSchedulingModule::get_output_port_names() const {
 
 framework::pipeline::ModuleMemoryRequirements UserSchedulingModule::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements requirements;
-    requirements.device_tensor_bytes =
-        params_.num_ues * sizeof(float) + params_.num_features * sizeof(float) * 3;
+    requirements.device_tensor_bytes = params_.num_ues * sizeof(float);
     requirements.alignment = 256;
     return requirements;
 }
@@ -161,7 +151,9 @@ UserSchedulingModule::get_output_memory_characteristics(std::string_view port_na
 }
 
 void UserSchedulingModule::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
-    (void)memory_slice;
+    mem_slice_ = memory_slice;
+    d_scores_ = reinterpret_cast<float*>(mem_slice_.device_tensor_ptr);
+    allocate_gpu_memory();
 }
 
 void UserSchedulingModule::warmup(cudaStream_t stream) {

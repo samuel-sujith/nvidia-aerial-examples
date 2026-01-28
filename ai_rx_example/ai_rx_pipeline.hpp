@@ -58,6 +58,8 @@ private:
 	float* h_rx_bits_ = nullptr;
 	float* d_rx_symbols_ = nullptr;
 	float* d_rx_bits_ = nullptr;
+	void* d_module_tensor_ = nullptr;
+	size_t module_tensor_bytes_ = 0;
 
 	void allocate_buffers();
 	void deallocate_buffers();

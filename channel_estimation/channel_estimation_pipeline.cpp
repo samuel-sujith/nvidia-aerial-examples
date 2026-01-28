@@ -31,10 +31,7 @@ void ChannelEstimationPipeline::setup() {
     allocate_pipeline_memory();
 
     // Setup module memory slice
-    framework::pipeline::ModuleMemorySlice memory_slice;
-    // In a real implementation, this would provide the proper memory slice
-
-    channel_estimator_->setup_memory(memory_slice);
+    channel_estimator_->setup_memory(module_slice_);
 
     // Setup tensor connections
     setup_tensor_connections();
@@ -90,14 +87,16 @@ void ChannelEstimationPipeline::execute_graph(cudaStream_t stream) {
 }
 
 void ChannelEstimationPipeline::allocate_pipeline_memory() {
-    // For this example, we'll use a simple fixed memory allocation
-    // In a real implementation, you would query module requirements
-    memory_size_ = 64 * 1024 * 1024; // 64MB
-    
+    auto requirements = channel_estimator_->get_requirements();
+    memory_size_ = requirements.device_tensor_bytes;
     cudaError_t err = cudaMalloc(&device_memory_, memory_size_);
     if (err != cudaSuccess) {
         throw std::runtime_error("Failed to allocate pipeline device memory");
     }
+
+    module_slice_ = {};
+    module_slice_.device_tensor_ptr = reinterpret_cast<std::byte*>(device_memory_);
+    module_slice_.device_tensor_bytes = memory_size_;
 }
 
 void ChannelEstimationPipeline::setup_tensor_connections() {

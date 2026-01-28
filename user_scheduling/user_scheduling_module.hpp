@@ -71,6 +71,7 @@ public:
 private:
     std::string module_id_;
     SchedulingParams params_;
+    framework::pipeline::ModuleMemorySlice mem_slice_;
 
     std::vector<framework::pipeline::PortInfo> input_ports_;
     std::vector<framework::pipeline::PortInfo> output_ports_;

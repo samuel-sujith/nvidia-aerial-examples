@@ -136,6 +136,8 @@ private:
     void* d_received_buffer_ = nullptr;
     void* d_channel_buffer_ = nullptr;
     void* d_detected_buffer_ = nullptr;
+    void* d_module_tensor_ = nullptr;
+    size_t module_tensor_bytes_ = 0;
     
     /**
      * @brief Allocate internal buffers

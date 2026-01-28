@@ -153,6 +153,8 @@ private:
     void* h_output_buffer_{nullptr};
     void* d_input_buffer_{nullptr};
     void* d_output_buffer_{nullptr};
+    void* d_module_tensor_{nullptr};
+    size_t module_tensor_bytes_{0};
     
     /**
      * @brief Process data on GPU device

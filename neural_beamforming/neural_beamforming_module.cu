@@ -220,9 +220,6 @@ NeuralBeamformer::NeuralBeamformer(const std::string& module_id, const Beamformi
     // Setup port information
     setup_port_info();
     
-    // Allocate GPU memory
-    allocate_gpu_memory();
-    
     // Initialize TensorRT engine if using neural network algorithm
     if (params_.algorithm == BeamformingAlgorithm::NEURAL_NETWORK && !params_.model_path.empty()) {
         initialize_tensorrt_engine();
@@ -252,30 +249,12 @@ std::vector<std::string> NeuralBeamformer::get_output_port_names() const {
 
 framework::pipeline::ModuleMemoryRequirements NeuralBeamformer::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements requirements;
-    
-    // Calculate total memory needed
+
     size_t total_size = 0;
-    
-    // Input/output symbols
-    total_size += h_descriptor_.input_symbols_size * sizeof(cuComplex);
     total_size += h_descriptor_.output_symbols_size * sizeof(cuComplex);
-    
-    // Beamforming weights and channel matrix
     total_size += h_descriptor_.weights_size * sizeof(cuComplex);
-    total_size += h_descriptor_.weights_size * sizeof(cuComplex); // channel matrix
-    
-    // Covariance matrix
-    total_size += h_descriptor_.covariance_size * sizeof(cuComplex);
-    
-    // Steering vectors (for DOA)
-    total_size += h_descriptor_.num_antennas * 360 * sizeof(cuComplex); // 360 degrees
-    
-    // Performance metrics
     total_size += h_descriptor_.num_users * h_descriptor_.num_subcarriers * sizeof(float);
-    
-    // Descriptor
-    total_size += sizeof(BeamformingDescriptor);
-    
+
     requirements.device_tensor_bytes = total_size;
     requirements.alignment = 256; // CUDA memory alignment
     
@@ -366,13 +345,7 @@ void NeuralBeamformer::allocate_gpu_memory() {
     err = cudaMalloc(&d_input_symbols_, h_descriptor_.input_symbols_size * sizeof(cuComplex));
     if (err != cudaSuccess) throw std::runtime_error("Failed to allocate input symbols memory");
     
-    err = cudaMalloc(&d_output_symbols_, h_descriptor_.output_symbols_size * sizeof(cuComplex));
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate output symbols memory");
-    
     // Beamforming weights and channel matrix
-    err = cudaMalloc(&d_beamforming_weights_, h_descriptor_.weights_size * sizeof(cuComplex));
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate beamforming weights memory");
-    
     err = cudaMalloc(&d_channel_matrix_, h_descriptor_.weights_size * sizeof(cuComplex));
     if (err != cudaSuccess) throw std::runtime_error("Failed to allocate channel matrix memory");
     
@@ -383,10 +356,6 @@ void NeuralBeamformer::allocate_gpu_memory() {
     // Steering vectors (for DOA algorithms)
     err = cudaMalloc(&d_steering_vectors_, h_descriptor_.num_antennas * 360 * sizeof(cuComplex));
     if (err != cudaSuccess) throw std::runtime_error("Failed to allocate steering vectors memory");
-    
-    // Performance metrics
-    err = cudaMalloc(&d_performance_metrics_, h_descriptor_.num_users * h_descriptor_.num_subcarriers * sizeof(float));
-    if (err != cudaSuccess) throw std::runtime_error("Failed to allocate performance metrics memory");
     
     // Descriptor
     err = cudaMalloc(&d_descriptor_, sizeof(BeamformingDescriptor));
@@ -408,12 +377,9 @@ void NeuralBeamformer::allocate_gpu_memory() {
 
 void NeuralBeamformer::deallocate_gpu_memory() {
     cudaFree(d_input_symbols_);
-    cudaFree(d_output_symbols_);
-    cudaFree(d_beamforming_weights_);
     cudaFree(d_channel_matrix_);
     cudaFree(d_covariance_matrix_);
     cudaFree(d_steering_vectors_);
-    cudaFree(d_performance_metrics_);
     cudaFree(d_descriptor_);
     
     d_input_symbols_ = nullptr;
@@ -738,9 +704,20 @@ NeuralBeamformer::get_output_tensor_info(std::string_view port_name) const {
     return tensor_infos;
 }
 
-void NeuralBeamformer::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
-    // For now, continue using our own memory allocation
-    // In a full implementation, this would use the provided memory slice
+void NeuralBeamformer::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    mem_slice_ = memory_slice;
+    std::byte* base = mem_slice_.device_tensor_ptr;
+    size_t offset = 0;
+
+    d_output_symbols_ = reinterpret_cast<cuComplex*>(base + offset);
+    offset += h_descriptor_.output_symbols_size * sizeof(cuComplex);
+
+    d_beamforming_weights_ = reinterpret_cast<cuComplex*>(base + offset);
+    offset += h_descriptor_.weights_size * sizeof(cuComplex);
+
+    d_performance_metrics_ = reinterpret_cast<float*>(base + offset);
+    offset += h_descriptor_.num_users * h_descriptor_.num_subcarriers * sizeof(float);
+
     allocate_gpu_memory();
 }
 

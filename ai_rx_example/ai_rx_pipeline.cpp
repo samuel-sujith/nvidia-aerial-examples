@@ -21,6 +21,15 @@ AiRxPipeline::~AiRxPipeline() {
 bool AiRxPipeline::initialize() {
 	try {
 		ai_rx_module_ = std::make_shared<AiRxModule>(config_.module_id, config_.ai_rx_params);
+		auto requirements = ai_rx_module_->get_requirements();
+		module_tensor_bytes_ = requirements.device_tensor_bytes;
+		if (module_tensor_bytes_ > 0) {
+			cudaMalloc(&d_module_tensor_, module_tensor_bytes_);
+			framework::pipeline::ModuleMemorySlice slice{};
+			slice.device_tensor_ptr = reinterpret_cast<std::byte*>(d_module_tensor_);
+			slice.device_tensor_bytes = module_tensor_bytes_;
+			ai_rx_module_->setup_memory(slice);
+		}
 		allocate_buffers();
 		reset_metrics();
 		return true;
@@ -94,10 +103,13 @@ void AiRxPipeline::deallocate_buffers() {
 	if (h_rx_bits_) cudaFreeHost(h_rx_bits_);
 	if (d_rx_symbols_) cudaFree(d_rx_symbols_);
 	if (d_rx_bits_) cudaFree(d_rx_bits_);
+	if (d_module_tensor_) cudaFree(d_module_tensor_);
 	h_rx_symbols_ = nullptr;
 	h_rx_bits_ = nullptr;
 	d_rx_symbols_ = nullptr;
 	d_rx_bits_ = nullptr;
+	d_module_tensor_ = nullptr;
+	module_tensor_bytes_ = 0;
 }
 
 void AiRxPipeline::reset_metrics() {

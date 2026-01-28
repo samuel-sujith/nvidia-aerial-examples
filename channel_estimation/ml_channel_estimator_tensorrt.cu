@@ -158,7 +158,9 @@ void MLChannelEstimatorTRT::setup_port_info() {
     );
 }
 
-void MLChannelEstimatorTRT::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
+void MLChannelEstimatorTRT::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    mem_slice_ = memory_slice;
+    d_channel_estimates_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
 }
 
@@ -238,22 +240,19 @@ void MLChannelEstimatorTRT::execute(cudaStream_t stream) {
 
 void MLChannelEstimatorTRT::allocate_gpu_memory() {
     cudaError_t err;
-    // Example: allocate output buffer (if needed for ML)
     size_t estimates_size = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
-    err = cudaMalloc(&d_channel_estimates_, estimates_size);
-    if (err != cudaSuccess) throw std::runtime_error("cudaMalloc d_channel_estimates_ failed");
+    (void)estimates_size;
+    (void)err;
 }
 
 void MLChannelEstimatorTRT::deallocate_gpu_memory() {
-    if (d_channel_estimates_) { cudaFree(d_channel_estimates_); d_channel_estimates_ = nullptr; }
+    d_channel_estimates_ = nullptr;
 }
 
 framework::pipeline::ModuleMemoryRequirements MLChannelEstimatorTRT::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements reqs{};
-    size_t total_bytes = 0;
-    total_bytes += params_.num_rx_antennas * params_.num_ofdm_symbols * params_.num_resource_blocks * sizeof(cuComplex);
-    total_bytes += params_.num_rx_antennas * params_.num_ofdm_symbols * params_.num_resource_blocks * 12 * sizeof(cuComplex);
-    reqs.device_tensor_bytes = total_bytes;
+    size_t estimates_bytes = params_.num_resource_blocks * 12ULL * params_.num_ofdm_symbols * sizeof(cuComplex);
+    reqs.device_tensor_bytes = estimates_bytes;
     reqs.alignment = 256;
     return reqs;
 }

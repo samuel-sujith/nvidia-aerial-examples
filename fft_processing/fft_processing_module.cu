@@ -68,7 +68,6 @@ FFTProcessor::FFTProcessor(const std::string& module_id, const FFTParams& params
     h_descriptor_ = {};
     h_descriptor_.total_samples = params_.fft_size * params_.num_antennas * params_.batch_size;
     
-    allocate_gpu_memory();
     setup_port_info();
     create_fft_plan();
     
@@ -140,8 +139,10 @@ FFTProcessor::get_output_tensor_info(std::string_view port_name) const {
     throw std::invalid_argument("Unknown output port: " + std::string(port_name));
 }
 
-void FFTProcessor::setup_memory(const framework::pipeline::ModuleMemorySlice& /*memory_slice*/) {
-    // Memory is already allocated in constructor
+void FFTProcessor::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
+    mem_slice_ = memory_slice;
+    d_output_data_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
+    allocate_gpu_memory();
 }
 
 void FFTProcessor::warmup(cudaStream_t /*stream*/) {
@@ -255,10 +256,7 @@ void FFTProcessor::allocate_gpu_memory() {
         throw std::runtime_error("Failed to allocate GPU memory for input data");
     }
     
-    err = cudaMalloc(&d_output_data_, data_size);
-    if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to allocate GPU memory for output data");
-    }
+    (void)data_size;
 }
 
 void FFTProcessor::deallocate_gpu_memory() {
@@ -270,10 +268,7 @@ void FFTProcessor::deallocate_gpu_memory() {
         cudaFree(d_input_data_);
         d_input_data_ = nullptr;
     }
-    if (d_output_data_) {
-        cudaFree(d_output_data_);
-        d_output_data_ = nullptr;
-    }
+    d_output_data_ = nullptr;
     if (d_window_function_) {
         cudaFree(d_window_function_);
         d_window_function_ = nullptr;
@@ -321,21 +316,8 @@ void FFTProcessor::setup_windowing() {
 framework::pipeline::ModuleMemoryRequirements FFTProcessor::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements reqs{};
     
-    // Calculate memory requirements based on parameters
-    size_t total_bytes = 0;
-    
-    // Memory for input/output data
-    total_bytes += 2 * h_descriptor_.total_samples * sizeof(cuComplex);
-    
-    // Memory for window function if enabled
-    if (params_.enable_windowing) {
-        total_bytes += params_.fft_size * sizeof(float);
-    }
-    
-    // Memory for descriptor
-    total_bytes += sizeof(FFTDescriptor);
-    
-    reqs.device_tensor_bytes = total_bytes;
+    size_t output_bytes = h_descriptor_.total_samples * sizeof(cuComplex);
+    reqs.device_tensor_bytes = output_bytes;
     reqs.alignment = 256; // CUDA memory alignment
     
     return reqs;

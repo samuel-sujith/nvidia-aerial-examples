@@ -27,6 +27,16 @@ bool NeuralBeamformingPipeline::initialize() {
     try {
         // Create neural beamformer module
         beamformer_ = std::make_shared<NeuralBeamformer>(config_.module_id, config_.beamforming_params);
+
+        auto requirements = beamformer_->get_requirements();
+        module_tensor_bytes_ = requirements.device_tensor_bytes;
+        if (module_tensor_bytes_ > 0) {
+            cudaMalloc(&d_module_tensor_, module_tensor_bytes_);
+            framework::pipeline::ModuleMemorySlice slice{};
+            slice.device_tensor_ptr = reinterpret_cast<std::byte*>(d_module_tensor_);
+            slice.device_tensor_bytes = module_tensor_bytes_;
+            beamformer_->setup_memory(slice);
+        }
         
         // Allocate internal buffers
         allocate_buffers();
@@ -451,6 +461,11 @@ void NeuralBeamformingPipeline::deallocate_buffers() {
         cudaFree(d_output_buffer_);
         d_output_buffer_ = nullptr;
     }
+    if (d_module_tensor_) {
+        cudaFree(d_module_tensor_);
+        d_module_tensor_ = nullptr;
+    }
+    module_tensor_bytes_ = 0;
 }
 
 void NeuralBeamformingPipeline::update_metrics(double processing_time_ms, size_t num_symbols, double avg_sinr_db) {

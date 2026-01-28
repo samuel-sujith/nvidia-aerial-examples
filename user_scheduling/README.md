@@ -2,6 +2,11 @@
 
 This example demonstrates ML-assisted user scheduling in a simplified multi-UE scenario using NVIDIA Aerial Framework module/pipeline patterns. It includes scripts for synthetic data generation, model training, and a C++ example that loads the trained model to select UEs.
 
+## Rationale
+- Scheduling decisions balance throughput, latency, fairness, and QoS priorities.
+- The feature space is high dimensional and nonlinear (SINR, buffers, HARQ, rates, QoS).
+- ML models learn trade-offs that are hard to hand-tune and adapt to changing traffic.
+
 ## Workflow
 1. **Generate synthetic data**
    ```bash

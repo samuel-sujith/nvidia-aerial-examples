@@ -66,6 +66,8 @@ private:
     float* h_features_ = nullptr;
     float* h_scores_ = nullptr;
     float* d_features_ = nullptr;
+    void* d_module_tensor_ = nullptr;
+    size_t module_tensor_bytes_ = 0;
 
     void allocate_buffers();
     void deallocate_buffers();

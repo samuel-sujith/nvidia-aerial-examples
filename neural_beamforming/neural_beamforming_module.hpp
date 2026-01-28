@@ -189,6 +189,7 @@ public:
 private:
     std::string module_id_;
     BeamformingParams params_;
+    framework::pipeline::ModuleMemorySlice mem_slice_;
     
     // Framework interface
     std::vector<framework::pipeline::PortInfo> input_ports_;

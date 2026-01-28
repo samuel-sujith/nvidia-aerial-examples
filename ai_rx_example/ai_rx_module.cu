@@ -153,9 +153,6 @@ AiRxModule::AiRxModule(const std::string& module_id, const AiRxParams& params)
     // Initialize port information
     setup_port_info();
 
-    // Allocate GPU memory
-    allocate_gpu_memory();
-
     // Initialize TensorRT engine if model path is provided
     if (!params_.model_path.empty()) {
         initialize_tensorrt_engine();
@@ -201,13 +198,6 @@ void AiRxModule::allocate_gpu_memory() {
         fprintf(stderr, "Failed to allocate GPU memory for input symbols: %s\n", cudaGetErrorString(err));
         throw std::runtime_error("Failed to allocate GPU memory for input symbols");
     }
-
-    // Allocate memory for output symbols
-    err = cudaMalloc(&d_rx_bits_, params_.num_symbols * sizeof(float));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate GPU memory for output symbols: %s\n", cudaGetErrorString(err));
-        throw std::runtime_error("Failed to allocate GPU memory for output symbols");
-    }
     printf("GPU memory allocation complete\n");
 }
 
@@ -217,17 +207,13 @@ void AiRxModule::deallocate_gpu_memory() {
         cudaFree(d_rx_symbols_);
         d_rx_symbols_ = nullptr;
     }
-
-    if (d_rx_bits_) {
-        cudaFree(d_rx_bits_);
-        d_rx_bits_ = nullptr;
-    }
     printf("GPU memory deallocation complete\n");
 }
 
 void AiRxModule::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
-    // Implementation for setting up memory using the provided memory slice
-    // For now, this is a placeholder
+    mem_slice_ = memory_slice;
+    d_rx_bits_ = reinterpret_cast<float*>(mem_slice_.device_tensor_ptr);
+    allocate_gpu_memory();
 }
 
 std::vector<framework::tensor::TensorInfo> AiRxModule::get_input_tensor_info(std::string_view port_name) const {
@@ -279,7 +265,7 @@ void AiRxModule::configure_io(const framework::pipeline::DynamicParams& params, 
 
 framework::pipeline::ModuleMemoryRequirements AiRxModule::get_requirements() const {
     framework::pipeline::ModuleMemoryRequirements requirements;
-    requirements.device_tensor_bytes = params_.num_symbols * sizeof(float) * 2; // Input and output
+    requirements.device_tensor_bytes = params_.num_symbols * sizeof(float); // Output only
     requirements.alignment = 256; // CUDA memory alignment
     return requirements;
 }
