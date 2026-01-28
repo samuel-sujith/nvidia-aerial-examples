@@ -161,11 +161,11 @@ void FFTProcessor::setup_memory(const framework::pipeline::ModuleMemorySlice& me
     dim3 gridSize((total_samples + blockSize.x - 1) / blockSize.x);
     window_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(apply_windowing_kernel));
     window_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
-    framework::pipeline::setup_kernel_arguments(window_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(window_kernel_config_, dynamic_params_gpu_ptr_);
 
     norm_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(normalize_ifft_kernel));
     norm_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
-    framework::pipeline::setup_kernel_arguments(norm_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(norm_kernel_config_, dynamic_params_gpu_ptr_);
 }
 
 void FFTProcessor::warmup(cudaStream_t /*stream*/) {

@@ -169,7 +169,7 @@ void UserSchedulingModule::setup_memory(const framework::pipeline::ModuleMemoryS
     int threads = 256;
     int blocks = (params_.num_ues + threads - 1) / threads;
     kernel_config_.setup_kernel_dimensions(dim3(blocks, 1, 1), dim3(threads, 1, 1));
-    framework::pipeline::setup_kernel_arguments(kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(kernel_config_, dynamic_params_gpu_ptr_);
 }
 
 void UserSchedulingModule::warmup(cudaStream_t stream) {

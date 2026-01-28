@@ -235,14 +235,14 @@ void MIMODetector::setup_memory(const framework::pipeline::ModuleMemorySlice& me
         detect_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(mmse_detection_kernel));
     }
     detect_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
-    framework::pipeline::setup_kernel_arguments(detect_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(detect_kernel_config_, dynamic_params_gpu_ptr_);
 
     if (params_.constellation_size == 4) {
         int total_symbols = params_.num_tx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols;
         dim3 gridSizeHard((total_symbols + blockSize.x - 1) / blockSize.x);
         hard_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qpsk_hard_decision_kernel));
         hard_kernel_config_.setup_kernel_dimensions(gridSizeHard, blockSize);
-        framework::pipeline::setup_kernel_arguments(hard_kernel_config_, *dynamic_params_gpu_ptr_);
+        framework::pipeline::setup_kernel_arguments(hard_kernel_config_, dynamic_params_gpu_ptr_);
     }
 }
 

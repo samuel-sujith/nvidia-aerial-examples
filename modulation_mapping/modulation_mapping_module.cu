@@ -295,11 +295,11 @@ void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice
         mod_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qam16_modulation_kernel));
     }
     mod_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
-    framework::pipeline::setup_kernel_arguments(mod_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(mod_kernel_config_, dynamic_params_gpu_ptr_);
 
     demod_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qpsk_demodulation_kernel));
     demod_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
-    framework::pipeline::setup_kernel_arguments(demod_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(demod_kernel_config_, dynamic_params_gpu_ptr_);
 
     initialize_constellation();
 }

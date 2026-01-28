@@ -756,7 +756,7 @@ void NeuralBeamformer::setup_memory(const framework::pipeline::ModuleMemorySlice
         weight_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(mvdr_weight_computation_kernel));
         weight_kernel_config_.setup_kernel_dimensions(weightGrid, weightBlock);
     }
-    framework::pipeline::setup_kernel_arguments(weight_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(weight_kernel_config_, dynamic_params_gpu_ptr_);
 
     dim3 applyBlock(8, 4, 4);
     dim3 applyGrid(
@@ -766,7 +766,7 @@ void NeuralBeamformer::setup_memory(const framework::pipeline::ModuleMemorySlice
     );
     apply_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(conventional_beamforming_kernel));
     apply_kernel_config_.setup_kernel_dimensions(applyGrid, applyBlock);
-    framework::pipeline::setup_kernel_arguments(apply_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(apply_kernel_config_, dynamic_params_gpu_ptr_);
 
     dim3 sinrBlock(16, 4);
     dim3 sinrGrid(
@@ -775,7 +775,7 @@ void NeuralBeamformer::setup_memory(const framework::pipeline::ModuleMemorySlice
     );
     sinr_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(calculate_sinr_kernel));
     sinr_kernel_config_.setup_kernel_dimensions(sinrGrid, sinrBlock);
-    framework::pipeline::setup_kernel_arguments(sinr_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(sinr_kernel_config_, dynamic_params_gpu_ptr_);
 }
 
 void NeuralBeamformer::warmup(cudaStream_t stream) {

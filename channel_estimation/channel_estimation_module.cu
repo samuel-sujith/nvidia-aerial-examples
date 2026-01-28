@@ -148,13 +148,13 @@ void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice
     dim3 gridSize((num_pilots + blockSize.x - 1) / blockSize.x);
     ls_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(ls_channel_estimation_kernel));
     ls_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
-    framework::pipeline::setup_kernel_arguments(ls_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(ls_kernel_config_, dynamic_params_gpu_ptr_);
 
     int num_data = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
     dim3 gridInterp((num_data + blockSize.x - 1) / blockSize.x);
     interp_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(interpolate_channel_estimates_kernel));
     interp_kernel_config_.setup_kernel_dimensions(gridInterp, blockSize);
-    framework::pipeline::setup_kernel_arguments(interp_kernel_config_, *dynamic_params_gpu_ptr_);
+    framework::pipeline::setup_kernel_arguments(interp_kernel_config_, dynamic_params_gpu_ptr_);
 }
 
 void ChannelEstimator::warmup(cudaStream_t /*stream*/) {
