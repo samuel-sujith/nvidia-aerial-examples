@@ -74,6 +74,7 @@ target_compile_definitions(modulation_mapping_module PRIVATE
 # Link CUDA libraries to the library
 target_link_libraries(modulation_mapping_module
     CUDA::cudart
+    CUDA::cuda_driver
     CUDA::cufft
     CUDA::cublas
     framework::pipeline
@@ -108,6 +109,7 @@ target_compile_options(modulation_mapping_example PRIVATE
 target_link_libraries(modulation_mapping_example
     modulation_mapping_module
     CUDA::cudart
+    CUDA::cuda_driver
     CUDA::cufft
     CUDA::cublas
 )
