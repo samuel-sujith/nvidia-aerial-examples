@@ -166,6 +166,7 @@ add_subdirectory(mimo_detection)
 add_subdirectory(modulation_mapping)
 add_subdirectory(neural_beamforming)
 add_subdirectory(ai_rx_example)
+add_subdirectory(user_scheduling)
 
 # Tests (use CPM for GTest like aerial-framework)
 if(BUILD_TESTS)

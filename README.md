@@ -74,6 +74,12 @@ nvidia-aerial-examples/
 │   ├── CMakeLists.txt           # Build configuration with TensorRT integration
 │   ├── README.md                # Comprehensive theory and usage documentation
 │   └── TENSORRT_INSTALL.md      # TensorRT installation guide
+├── user_scheduling/             # ML-assisted user scheduling example
+│   ├── generate_user_scheduling_data.py # Synthetic data generation
+│   ├── train_user_scheduling_model.py   # Train/export scheduling model
+│   ├── user_scheduling_example.cpp      # C++ scheduling demo
+│   ├── CMakeLists.txt           # Build configuration
+│   └── README.md                # Usage and workflow documentation
 ├── common/                      # Shared utilities and base classes
 │   ├── test_utils.hpp           # Testing and validation utilities
 │   ├── perf_utils.hpp           # Performance measurement tools
@@ -275,6 +281,13 @@ Advanced beamforming with classical and neural network algorithms:
 - **Algorithms**: Conventional, MVDR, Zero-Forcing, Neural Network (TensorRT)
 - **Features**: TensorRT integration, massive MIMO support, performance analytics
 - **Applications**: 5G/6G beamforming, spatial multiplexing, interference mitigation
+
+### User Scheduling Pipeline
+ML-assisted user scheduling with data generation and model export:
+- **Location**: `user_scheduling/`
+- **Algorithms**: Logistic regression with heuristic fallback
+- **Features**: Synthetic data generator, lightweight model export, C++ demo
+- **Applications**: UE scheduling, QoS-aware resource allocation
 
 ## 📊 Example Output
 

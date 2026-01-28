@@ -1,8 +1,13 @@
 """
 Step 2: Train AI model to mimic Rx side
 Loads Sionna-generated data and trains a neural network.
+
+Reference: Sionna - A Library for Link-Level Simulations in Wireless Communications
+https://nvlabs.github.io/sionna/
 """
 import numpy as np
+import os
+import subprocess
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -52,5 +57,26 @@ def train_model():
     torch.onnx.export(model, X_tensor[:10], "rx_model.onnx", input_names=['input'], output_names=['output'], opset_version=11)
     print("AI Rx model trained and exported to rx_model.onnx.")
 
+def generate_training_data():
+    print("Generating training data using Sionna Tx-Rx pipeline...")
+    script_path = os.path.join(os.path.dirname(__file__), "sionna_tx_rx_pipeline.py")
+    if not os.path.exists(script_path):
+        raise FileNotFoundError(f"Sionna Tx-Rx pipeline script not found at {script_path}")
+
+    # Run the Sionna Tx-Rx pipeline script
+    result = subprocess.run(["python3", script_path], capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Error while generating training data:")
+        print(result.stderr)
+        raise RuntimeError("Failed to generate training data.")
+
+    print("Training data generated successfully.")
+    print(result.stdout)
+
 if __name__ == "__main__":
+    # Step 1: Generate training data
+    generate_training_data()
+
+    # Step 2: Train the model
     train_model()
