@@ -47,6 +47,7 @@ target_include_directories(user_scheduling_module
 target_link_libraries(user_scheduling_module
     PUBLIC
         CUDA::cudart
+        CUDA::cuda_driver
         framework::pipeline
         framework::tensor
         framework::task
@@ -80,6 +81,7 @@ target_link_libraries(user_scheduling_pipeline
     PUBLIC
         user_scheduling_module
         CUDA::cudart
+        CUDA::cuda_driver
         framework::pipeline
         framework::tensor
         framework::task
@@ -145,6 +147,7 @@ target_link_libraries(user_scheduling_example
         user_scheduling_pipeline
         user_scheduling_module
         CUDA::cudart
+        CUDA::cuda_driver
 )
 
 target_compile_features(user_scheduling_example
