@@ -14,6 +14,7 @@
 #ifdef TENSORRT_AVAILABLE
 #include <NvInfer.h>
 #include <NvInferRuntime.h>
+#include <NvInferVersion.h>
 #include <fstream>
 #endif
 

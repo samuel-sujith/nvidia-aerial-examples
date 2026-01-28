@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #ifdef TENSORRT_AVAILABLE
+#include <NvInferVersion.h>
 class Logger : public nvinfer1::ILogger {
     void log(Severity severity, const char* msg) noexcept override {
         if (severity <= Severity::kWARNING) {
@@ -278,7 +279,7 @@ bool UserSchedulingModule::load_engine_from_file(const std::string& engine_path)
 }
 
 bool UserSchedulingModule::initialize_tensorrt_engine() {
-#ifdef TENSORRT_AVAILABLE
+#if defined(TENSORRT_AVAILABLE) && !defined(TENSORRT_STUB)
     try {
         trt_runtime_ = nvinfer1::createInferRuntime(gLogger);
         if (!trt_runtime_) {
@@ -344,7 +345,7 @@ void UserSchedulingModule::cleanup_tensorrt_resources() {
 }
 
 bool UserSchedulingModule::run_trt_inference(cudaStream_t stream) {
-#ifdef TENSORRT_AVAILABLE
+#if defined(TENSORRT_AVAILABLE) && !defined(TENSORRT_STUB)
     if (!trt_context_ || !trt_engine_) {
         return false;
     }
@@ -362,6 +363,19 @@ bool UserSchedulingModule::run_trt_inference(cudaStream_t stream) {
         return false;
     }
 
+#if NV_TENSORRT_MAJOR >= 10
+    int num_io = trt_engine_->getNbIOTensors();
+    for (int i = 0; i < num_io; ++i) {
+        const char* name = trt_engine_->getIOTensorName(i);
+        auto mode = trt_engine_->getTensorIOMode(name);
+        if (mode == nvinfer1::TensorIOMode::kINPUT) {
+            trt_context_->setTensorAddress(name, d_trt_input_);
+        } else {
+            trt_context_->setTensorAddress(name, d_scores_);
+        }
+    }
+    return trt_context_->enqueueV3(stream);
+#else
     int input_index = -1;
     int output_index = -1;
     for (int i = 0; i < trt_engine_->getNbBindings(); ++i) {
@@ -379,7 +393,12 @@ bool UserSchedulingModule::run_trt_inference(cudaStream_t stream) {
     bindings[input_index] = d_trt_input_;
     bindings[output_index] = d_scores_;
 
+#if NV_TENSORRT_MAJOR >= 8
     return trt_context_->enqueueV2(bindings, stream, nullptr);
+#else
+    return trt_context_->enqueue(1, bindings, stream, nullptr);
+#endif
+#endif
 #else
     (void)stream;
     return false;
