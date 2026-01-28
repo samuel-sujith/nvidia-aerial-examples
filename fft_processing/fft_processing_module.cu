@@ -11,6 +11,9 @@ using namespace framework::tensor;
 namespace fft_processing {
 
 __global__ void apply_windowing_kernel(const FFTDescriptor* desc) {
+    if (!desc || !desc->params || !desc->input_data || !desc->output_data) {
+        return;
+    }
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < desc->total_samples) {
         int sample_idx = idx % desc->params->fft_size;
@@ -27,6 +30,9 @@ __global__ void apply_windowing_kernel(const FFTDescriptor* desc) {
 }
 
 __global__ void normalize_ifft_kernel(const FFTDescriptor* desc) {
+    if (!desc || !desc->params || !desc->output_data) {
+        return;
+    }
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < desc->total_samples) {
         float norm_factor = 1.0f / desc->params->fft_size;
@@ -128,12 +134,18 @@ FFTProcessor::get_output_tensor_info(std::string_view port_name) const {
 
 void FFTProcessor::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
     mem_slice_ = memory_slice;
+    if (!mem_slice_.device_tensor_ptr) {
+        throw std::runtime_error("FFT output device buffer not allocated");
+    }
     d_output_data_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
     kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
     dynamic_params_cpu_ptr_ =
         &kernel_desc_mgr_->create_dynamic_param<FFTDescriptor>(0);
     dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<FFTDescriptor>(0);
+    if (!dynamic_params_gpu_ptr_) {
+        throw std::runtime_error("FFT dynamic descriptor device pointer not allocated");
+    }
     d_descriptor_ = dynamic_params_gpu_ptr_;
 
     int total_samples = h_descriptor_.total_samples;
@@ -156,14 +168,24 @@ void FFTProcessor::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
-    if (dynamic_params_cpu_ptr_) {
-        dynamic_params_cpu_ptr_->input_data = d_input_data_;
-        dynamic_params_cpu_ptr_->output_data = d_output_data_;
-        dynamic_params_cpu_ptr_->window_function = d_window_function_;
-        dynamic_params_cpu_ptr_->params = d_params_;
-        dynamic_params_cpu_ptr_->total_samples = h_descriptor_.total_samples;
-        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    if (!dynamic_params_cpu_ptr_) {
+        throw std::runtime_error("FFT dynamic descriptor not initialized");
     }
+    if (!kernel_desc_mgr_) {
+        throw std::runtime_error("FFT kernel descriptor manager not initialized");
+    }
+    if (!d_input_data_ || !d_output_data_ || !d_params_) {
+        throw std::runtime_error("FFT device buffers not initialized");
+    }
+    if (params_.enable_windowing && !d_window_function_) {
+        throw std::runtime_error("FFT window function not initialized");
+    }
+    dynamic_params_cpu_ptr_->input_data = d_input_data_;
+    dynamic_params_cpu_ptr_->output_data = d_output_data_;
+    dynamic_params_cpu_ptr_->window_function = d_window_function_;
+    dynamic_params_cpu_ptr_->params = d_params_;
+    dynamic_params_cpu_ptr_->total_samples = h_descriptor_.total_samples;
+    kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
 }
 
 void FFTProcessor::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -194,6 +216,15 @@ std::vector<framework::pipeline::PortInfo> FFTProcessor::get_outputs() const {
 void FFTProcessor::execute(cudaStream_t stream) {
     if (!current_input_) {
         throw std::runtime_error("Input not set - call set_inputs first");
+    }
+    if (!d_input_data_ || !d_output_data_) {
+        throw std::runtime_error("FFT device buffers not initialized");
+    }
+    if (!fft_plan_) {
+        throw std::runtime_error("FFT plan not initialized");
+    }
+    if (params_.enable_windowing && !d_window_function_) {
+        throw std::runtime_error("FFT window function not initialized");
     }
     
     // Copy input data to internal buffer for processing
@@ -265,10 +296,16 @@ void FFTProcessor::update_graph_node_params(
     CUgraphExec exec,
     const framework::pipeline::DynamicParams& /*params*/) {
     if (params_.enable_windowing) {
+        if (!window_node_) {
+            throw std::runtime_error("FFT window graph node not initialized");
+        }
         auto window_params = window_kernel_config_.get_kernel_params();
         cuGraphExecKernelNodeSetParams(exec, window_node_, &window_params);
     }
     if (params_.direction == FFTDirection::INVERSE && params_.normalize) {
+        if (!norm_node_) {
+            throw std::runtime_error("FFT normalization graph node not initialized");
+        }
         auto norm_params = norm_kernel_config_.get_kernel_params();
         cuGraphExecKernelNodeSetParams(exec, norm_node_, &norm_params);
     }

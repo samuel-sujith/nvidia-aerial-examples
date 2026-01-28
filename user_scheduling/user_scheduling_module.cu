@@ -22,6 +22,9 @@ namespace user_scheduling {
 namespace {
 
 __global__ void schedule_scores_kernel(const UserSchedulingDescriptor* desc) {
+    if (!desc || !desc->features || !desc->scores || !desc->mean || !desc->std || !desc->weights) {
+        return;
+    }
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= desc->num_ues) {
         return;
@@ -144,6 +147,9 @@ UserSchedulingModule::get_output_memory_characteristics(std::string_view port_na
 
 void UserSchedulingModule::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
     mem_slice_ = memory_slice;
+    if (!mem_slice_.device_tensor_ptr) {
+        throw std::runtime_error("User scheduling output device buffer not allocated");
+    }
     d_scores_ = reinterpret_cast<float*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
 
@@ -151,6 +157,9 @@ void UserSchedulingModule::setup_memory(const framework::pipeline::ModuleMemoryS
     dynamic_params_cpu_ptr_ =
         &kernel_desc_mgr_->create_dynamic_param<UserSchedulingDescriptor>(0);
     dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<UserSchedulingDescriptor>(0);
+    if (!dynamic_params_gpu_ptr_) {
+        throw std::runtime_error("User scheduling dynamic descriptor device pointer not allocated");
+    }
 
     dynamic_params_cpu_ptr_->scores = d_scores_;
     dynamic_params_cpu_ptr_->num_ues = params_.num_ues;
@@ -164,6 +173,9 @@ void UserSchedulingModule::setup_memory(const framework::pipeline::ModuleMemoryS
 }
 
 void UserSchedulingModule::warmup(cudaStream_t stream) {
+    if (!d_scores_) {
+        throw std::runtime_error("User scheduling output buffer not initialized");
+    }
     cudaMemsetAsync(d_scores_, 0, params_.num_ues * sizeof(float), stream);
 }
 
@@ -172,17 +184,27 @@ void UserSchedulingModule::configure_io(
     cudaStream_t stream
 ) {
     (void)params;
-    if (dynamic_params_cpu_ptr_) {
-        dynamic_params_cpu_ptr_->features = static_cast<const float*>(current_features_);
-        dynamic_params_cpu_ptr_->scores = d_scores_;
-        dynamic_params_cpu_ptr_->num_ues = params_.num_ues;
-        dynamic_params_cpu_ptr_->num_features = params_.num_features;
-        dynamic_params_cpu_ptr_->mean = d_mean_;
-        dynamic_params_cpu_ptr_->std = d_std_;
-        dynamic_params_cpu_ptr_->weights = d_weights_;
-        dynamic_params_cpu_ptr_->bias = model_bias_;
-        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    if (!dynamic_params_cpu_ptr_) {
+        throw std::runtime_error("User scheduling dynamic descriptor not initialized");
     }
+    if (!kernel_desc_mgr_) {
+        throw std::runtime_error("User scheduling kernel descriptor manager not initialized");
+    }
+    if (!current_features_) {
+        throw std::runtime_error("User scheduling input features not set");
+    }
+    if (!d_scores_ || !d_mean_ || !d_std_ || !d_weights_) {
+        throw std::runtime_error("User scheduling device buffers not initialized");
+    }
+    dynamic_params_cpu_ptr_->features = static_cast<const float*>(current_features_);
+    dynamic_params_cpu_ptr_->scores = d_scores_;
+    dynamic_params_cpu_ptr_->num_ues = params_.num_ues;
+    dynamic_params_cpu_ptr_->num_features = params_.num_features;
+    dynamic_params_cpu_ptr_->mean = d_mean_;
+    dynamic_params_cpu_ptr_->std = d_std_;
+    dynamic_params_cpu_ptr_->weights = d_weights_;
+    dynamic_params_cpu_ptr_->bias = model_bias_;
+    kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
 }
 
 void UserSchedulingModule::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -211,6 +233,9 @@ bool UserSchedulingModule::set_model(
         return false;
     }
 
+    if (!d_mean_ || !d_std_ || !d_weights_) {
+        return false;
+    }
     cudaError_t err = cudaMemcpy(d_mean_, mean.data(), mean.size() * sizeof(float), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         return false;
@@ -239,6 +264,9 @@ void UserSchedulingModule::execute(cudaStream_t stream) {
     if (!current_features_) {
         throw std::runtime_error("Input features not set for execution");
     }
+    if (!d_scores_) {
+        throw std::runtime_error("User scheduling output buffer not initialized");
+    }
     if (!model_loaded_ && !trt_enabled_) {
         throw std::runtime_error("Scheduling model not loaded");
     }
@@ -266,6 +294,9 @@ std::span<const CUgraphNode> UserSchedulingModule::add_node_to_graph(
 void UserSchedulingModule::update_graph_node_params(
     CUgraphExec exec,
     const framework::pipeline::DynamicParams& /*params*/) {
+    if (!kernel_node_) {
+        throw std::runtime_error("User scheduling graph node not initialized");
+    }
     const auto& kernel_params = kernel_config_.get_kernel_params();
     cuGraphExecKernelNodeSetParams(exec, kernel_node_, &kernel_params);
 }

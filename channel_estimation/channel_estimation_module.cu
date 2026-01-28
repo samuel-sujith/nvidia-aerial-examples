@@ -13,8 +13,11 @@ namespace channel_estimation {
 
 /// CUDA kernel for least squares channel estimation (SAFE)
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
+    if (!desc || !desc->params || !desc->rx_pilots || !desc->tx_pilots || !desc->pilot_estimates) {
+        return;
+    }
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= desc->num_pilots || !desc->params) return;
+    if (tid >= desc->num_pilots) return;
     
     const cuComplex rx_pilot = desc->rx_pilots[tid];
     const cuComplex tx_pilot = desc->tx_pilots[tid];
@@ -37,8 +40,11 @@ __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
 
 /// CUDA kernel for linear interpolation (SAFE)
 __global__ void interpolate_channel_estimates_kernel(ChannelEstDescriptor* desc) {
+    if (!desc || !desc->params || !desc->pilot_estimates || !desc->channel_estimates) {
+        return;
+    }
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= desc->num_data_subcarriers || !desc->params) return;
+    if (tid >= desc->num_data_subcarriers) return;
     
     int pilot_spacing = desc->params->pilot_spacing;
     if (pilot_spacing <= 0) return;  // Safety
@@ -115,12 +121,18 @@ void ChannelEstimator::setup_port_info() {
 
 void ChannelEstimator::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
     mem_slice_ = memory_slice;
+    if (!mem_slice_.device_tensor_ptr) {
+        throw std::runtime_error("Channel estimation output device buffer not allocated");
+    }
     d_channel_estimates_ = reinterpret_cast<cuComplex*>(mem_slice_.device_tensor_ptr);
     allocate_gpu_memory();
     kernel_desc_mgr_ = std::make_unique<framework::pipeline::KernelDescriptorAccessor>(memory_slice);
     dynamic_params_cpu_ptr_ =
         &kernel_desc_mgr_->create_dynamic_param<ChannelEstDescriptor>(0);
     dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<ChannelEstDescriptor>(0);
+    if (!dynamic_params_gpu_ptr_) {
+        throw std::runtime_error("Channel estimation dynamic descriptor device pointer not allocated");
+    }
     d_descriptor_ = dynamic_params_gpu_ptr_;
 
     int num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
@@ -145,16 +157,26 @@ void ChannelEstimator::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
-    if (dynamic_params_cpu_ptr_) {
-        dynamic_params_cpu_ptr_->rx_pilots = current_rx_pilots_;
-        dynamic_params_cpu_ptr_->tx_pilots = current_tx_pilots_;
-        dynamic_params_cpu_ptr_->channel_estimates = d_channel_estimates_;
-        dynamic_params_cpu_ptr_->params = d_params_;
-        dynamic_params_cpu_ptr_->num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
-        dynamic_params_cpu_ptr_->num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
-        dynamic_params_cpu_ptr_->pilot_estimates = d_pilot_estimates_;
-        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    if (!dynamic_params_cpu_ptr_) {
+        throw std::runtime_error("Channel estimation dynamic descriptor not initialized");
     }
+    if (!kernel_desc_mgr_) {
+        throw std::runtime_error("Channel estimation kernel descriptor manager not initialized");
+    }
+    if (!current_rx_pilots_ || !current_tx_pilots_) {
+        throw std::runtime_error("Channel estimation input pilots not set");
+    }
+    if (!d_channel_estimates_ || !d_pilot_estimates_ || !d_params_) {
+        throw std::runtime_error("Channel estimation device buffers not initialized");
+    }
+    dynamic_params_cpu_ptr_->rx_pilots = current_rx_pilots_;
+    dynamic_params_cpu_ptr_->tx_pilots = current_tx_pilots_;
+    dynamic_params_cpu_ptr_->channel_estimates = d_channel_estimates_;
+    dynamic_params_cpu_ptr_->params = d_params_;
+    dynamic_params_cpu_ptr_->num_pilots = params_.num_resource_blocks * 12 / params_.pilot_spacing;
+    dynamic_params_cpu_ptr_->num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
+    dynamic_params_cpu_ptr_->pilot_estimates = d_pilot_estimates_;
+    kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
 }
 
 void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -259,6 +281,9 @@ std::span<const CUgraphNode> ChannelEstimator::add_node_to_graph(
 void ChannelEstimator::update_graph_node_params(
     CUgraphExec exec,
     const framework::pipeline::DynamicParams& /*params*/) {
+    if (!ls_node_ || !interp_node_) {
+        throw std::runtime_error("Channel estimation graph nodes not initialized");
+    }
     auto ls_params = ls_kernel_config_.get_kernel_params();
     cuGraphExecKernelNodeSetParams(exec, ls_node_, &ls_params);
     auto interp_params = interp_kernel_config_.get_kernel_params();

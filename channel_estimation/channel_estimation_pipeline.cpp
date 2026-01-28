@@ -119,15 +119,27 @@ void ChannelEstimationPipeline::allocate_pipeline_memory() {
     module_slice_.device_tensor_ptr = reinterpret_cast<std::byte*>(device_memory_);
     module_slice_.device_tensor_bytes = memory_size_;
     if (static_desc_bytes_ > 0) {
-        cudaMallocHost(&static_desc_cpu_, static_desc_bytes_);
-        cudaMalloc(&static_desc_gpu_, static_desc_bytes_);
+        err = cudaMallocHost(&static_desc_cpu_, static_desc_bytes_);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("Failed to allocate static descriptor host memory");
+        }
+        err = cudaMalloc(&static_desc_gpu_, static_desc_bytes_);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("Failed to allocate static descriptor device memory");
+        }
         module_slice_.static_kernel_descriptor_cpu_ptr = static_desc_cpu_;
         module_slice_.static_kernel_descriptor_gpu_ptr = static_desc_gpu_;
         module_slice_.static_kernel_descriptor_bytes = static_desc_bytes_;
     }
     if (dynamic_desc_bytes_ > 0) {
-        cudaMallocHost(&dynamic_desc_cpu_, dynamic_desc_bytes_);
-        cudaMalloc(&dynamic_desc_gpu_, dynamic_desc_bytes_);
+        err = cudaMallocHost(&dynamic_desc_cpu_, dynamic_desc_bytes_);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("Failed to allocate dynamic descriptor host memory");
+        }
+        err = cudaMalloc(&dynamic_desc_gpu_, dynamic_desc_bytes_);
+        if (err != cudaSuccess) {
+            throw std::runtime_error("Failed to allocate dynamic descriptor device memory");
+        }
         module_slice_.dynamic_kernel_descriptor_cpu_ptr = dynamic_desc_cpu_;
         module_slice_.dynamic_kernel_descriptor_gpu_ptr = dynamic_desc_gpu_;
         module_slice_.dynamic_kernel_descriptor_bytes = dynamic_desc_bytes_;
