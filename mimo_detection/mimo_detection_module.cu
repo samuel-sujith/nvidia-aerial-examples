@@ -4,12 +4,23 @@
 #include <cstring>
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#include <cstdlib>
 #include <cublas_v2.h>
 
 namespace mimo_detection {
 
+namespace {
+bool debug_enabled() {
+    const char* value = std::getenv("AERIAL_DEBUG");
+    return value && value[0] != '0';
+}
+} // namespace
+
 // CUDA kernels for MIMO detection algorithms
 __global__ void zero_forcing_detection_kernel(const MIMODescriptor* desc) {
+    if (!desc || !desc->params || !desc->received_symbols || !desc->channel_matrix || !desc->detected_symbols) {
+        return;
+    }
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total_elements = desc->params->num_subcarriers * desc->params->num_ofdm_symbols;
     
@@ -44,6 +55,9 @@ __global__ void zero_forcing_detection_kernel(const MIMODescriptor* desc) {
 }
 
 __global__ void mmse_detection_kernel(const MIMODescriptor* desc) {
+    if (!desc || !desc->params || !desc->received_symbols || !desc->channel_matrix || !desc->detected_symbols) {
+        return;
+    }
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total_elements = desc->params->num_subcarriers * desc->params->num_ofdm_symbols;
     
@@ -188,6 +202,9 @@ MIMODetector::get_output_tensor_info(std::string_view port_name) const {
 
 void MIMODetector::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
     mem_slice_ = memory_slice;
+    if (!mem_slice_.device_tensor_ptr) {
+        throw std::runtime_error("MIMO detected symbols buffer not allocated");
+    }
     std::byte* base = mem_slice_.device_tensor_ptr;
     size_t offset = 0;
 
@@ -204,6 +221,9 @@ void MIMODetector::setup_memory(const framework::pipeline::ModuleMemorySlice& me
     dynamic_params_cpu_ptr_ =
         &kernel_desc_mgr_->create_dynamic_param<MIMODescriptor>(0);
     dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<MIMODescriptor>(0);
+    if (!dynamic_params_gpu_ptr_) {
+        throw std::runtime_error("MIMO dynamic descriptor device pointer not allocated");
+    }
     d_descriptor_ = dynamic_params_gpu_ptr_;
 
     int total_elements = params_.num_subcarriers * params_.num_ofdm_symbols;
@@ -234,14 +254,30 @@ void MIMODetector::configure_io(
     const framework::pipeline::DynamicParams& /*params*/,
     cudaStream_t stream
 ) {
-    if (dynamic_params_cpu_ptr_) {
-        dynamic_params_cpu_ptr_->received_symbols = d_received_symbols_;
-        dynamic_params_cpu_ptr_->channel_matrix = d_channel_matrix_;
-        dynamic_params_cpu_ptr_->detected_symbols = d_detected_symbols_;
-        dynamic_params_cpu_ptr_->soft_bits = d_soft_bits_;
-        dynamic_params_cpu_ptr_->params = d_params_;
-        dynamic_params_cpu_ptr_->total_resource_elements = calculate_total_elements();
-        kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    if (!dynamic_params_cpu_ptr_) {
+        throw std::runtime_error("MIMO dynamic descriptor not initialized");
+    }
+    if (!kernel_desc_mgr_) {
+        throw std::runtime_error("MIMO kernel descriptor manager not initialized");
+    }
+    if (!d_received_symbols_ || !d_channel_matrix_ || !d_detected_symbols_ || !d_params_) {
+        throw std::runtime_error("MIMO device buffers not initialized");
+    }
+    dynamic_params_cpu_ptr_->received_symbols = d_received_symbols_;
+    dynamic_params_cpu_ptr_->channel_matrix = d_channel_matrix_;
+    dynamic_params_cpu_ptr_->detected_symbols = d_detected_symbols_;
+    dynamic_params_cpu_ptr_->soft_bits = d_soft_bits_;
+    dynamic_params_cpu_ptr_->params = d_params_;
+    dynamic_params_cpu_ptr_->total_resource_elements = calculate_total_elements();
+    kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    if (debug_enabled()) {
+        std::cerr << "[DEBUG] MIMODetector::configure_io rx=" << d_received_symbols_
+                  << " h=" << d_channel_matrix_
+                  << " out=" << d_detected_symbols_
+                  << " params=" << d_params_
+                  << " dyn_cpu=" << dynamic_params_cpu_ptr_
+                  << " dyn_gpu=" << dynamic_params_gpu_ptr_
+                  << std::endl;
     }
 }
 
@@ -275,6 +311,9 @@ void MIMODetector::execute(cudaStream_t stream) {
     if (!current_received_ || !current_channel_) {
         throw std::runtime_error("Input tensors not set - call set_inputs first");
     }
+    if (!d_received_symbols_ || !d_channel_matrix_ || !d_detected_symbols_) {
+        throw std::runtime_error("MIMO device buffers not initialized");
+    }
     
     // Copy input data to internal buffers for processing
     size_t received_size = params_.num_rx_antennas * params_.num_subcarriers * params_.num_ofdm_symbols * sizeof(cuComplex);
@@ -294,6 +333,16 @@ void MIMODetector::execute(cudaStream_t stream) {
     err = launch_mimo_detection_kernel(stream);
     if (err != cudaSuccess) {
         throw std::runtime_error("MIMO detection kernel launch failed");
+    }
+
+    if (debug_enabled()) {
+        err = cudaPeekAtLastError();
+        std::cerr << "[DEBUG] MIMODetector::execute cudaPeekAtLastError="
+                  << cudaGetErrorString(err) << std::endl;
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess) {
+            throw std::runtime_error(std::string("Stream sync failed: ") + cudaGetErrorString(err));
+        }
     }
 }
 
@@ -425,9 +474,15 @@ std::span<const CUgraphNode> MIMODetector::add_node_to_graph(
 void MIMODetector::update_graph_node_params(
     CUgraphExec exec,
     const framework::pipeline::DynamicParams& /*params*/) {
+    if (!detect_node_) {
+        throw std::runtime_error("MIMO detect graph node not initialized");
+    }
     auto detect_params = detect_kernel_config_.get_kernel_params();
     cuGraphExecKernelNodeSetParams(exec, detect_node_, &detect_params);
     if (params_.constellation_size == 4) {
+        if (!hard_node_) {
+            throw std::runtime_error("MIMO hard-decision graph node not initialized");
+        }
         auto hard_params = hard_kernel_config_.get_kernel_params();
         cuGraphExecKernelNodeSetParams(exec, hard_node_, &hard_params);
     }

@@ -8,8 +8,16 @@
 #include <cuComplex.h>
 #include <algorithm>  // std::min
 #include <cstdio>
+#include <cstdlib>
 
 namespace channel_estimation {
+
+namespace {
+bool debug_enabled() {
+    const char* value = std::getenv("AERIAL_DEBUG");
+    return value && value[0] != '0';
+}
+} // namespace
 
 /// CUDA kernel for least squares channel estimation (SAFE)
 __global__ void ls_channel_estimation_kernel(ChannelEstDescriptor* desc) {
@@ -177,6 +185,17 @@ void ChannelEstimator::configure_io(
     dynamic_params_cpu_ptr_->num_data_subcarriers = params_.num_resource_blocks * 12 * params_.num_ofdm_symbols;
     dynamic_params_cpu_ptr_->pilot_estimates = d_pilot_estimates_;
     kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+
+    if (debug_enabled()) {
+        std::cerr << "[DEBUG] ChannelEstimator::configure_io rx=" << current_rx_pilots_
+                  << " tx=" << current_tx_pilots_
+                  << " out=" << d_channel_estimates_
+                  << " pilot_est=" << d_pilot_estimates_
+                  << " params=" << d_params_
+                  << " dyn_cpu=" << dynamic_params_cpu_ptr_
+                  << " dyn_gpu=" << dynamic_params_gpu_ptr_
+                  << std::endl;
+    }
 }
 
 void ChannelEstimator::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -217,6 +236,16 @@ void ChannelEstimator::execute(cudaStream_t stream) {
     err = launch_channel_estimation_kernel(stream);
     if (err != cudaSuccess) {
         throw std::runtime_error(std::string("Kernel launch failed: ") + cudaGetErrorString(err));
+    }
+
+    if (debug_enabled()) {
+        err = cudaPeekAtLastError();
+        std::cerr << "[DEBUG] ChannelEstimator::execute cudaPeekAtLastError="
+                  << cudaGetErrorString(err) << std::endl;
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess) {
+            throw std::runtime_error(std::string("Stream sync failed: ") + cudaGetErrorString(err));
+        }
     }
     
     err = cudaStreamSynchronize(stream);

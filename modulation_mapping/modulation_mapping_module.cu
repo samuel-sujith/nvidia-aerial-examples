@@ -138,7 +138,6 @@ ModulationMapper::ModulationMapper(const std::string& module_id, const Modulatio
     h_descriptor_.constellation_size = get_constellation_size();
     
     setup_port_info();
-    initialize_constellation();
 }
 
 ModulationMapper::~ModulationMapper() {
@@ -258,6 +257,9 @@ ModulationMapper::get_output_tensor_info(std::string_view port_name) const {
 
 void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice& memory_slice) {
     mem_slice_ = memory_slice;
+    if (!mem_slice_.device_tensor_ptr) {
+        throw std::runtime_error("Modulation mapping output buffer not allocated");
+    }
     std::byte* base = mem_slice_.device_tensor_ptr;
     size_t offset = 0;
 
@@ -280,6 +282,9 @@ void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice
     dynamic_params_cpu_ptr_ =
         &kernel_desc_mgr_->create_dynamic_param<ModulationDescriptor>(0);
     dynamic_params_gpu_ptr_ = kernel_desc_mgr_->get_dynamic_device_ptr<ModulationDescriptor>(0);
+    if (!dynamic_params_gpu_ptr_) {
+        throw std::runtime_error("Modulation mapping dynamic descriptor device pointer not allocated");
+    }
     d_descriptor_ = dynamic_params_gpu_ptr_;
 
     dim3 blockSize(256);
@@ -295,6 +300,8 @@ void ModulationMapper::setup_memory(const framework::pipeline::ModuleMemorySlice
     demod_kernel_config_.setup_kernel_function(reinterpret_cast<const void*>(qpsk_demodulation_kernel));
     demod_kernel_config_.setup_kernel_dimensions(gridSize, blockSize);
     framework::pipeline::setup_kernel_arguments(demod_kernel_config_, *dynamic_params_gpu_ptr_);
+
+    initialize_constellation();
 }
 
 void ModulationMapper::warmup(cudaStream_t /*stream*/) {
@@ -588,6 +595,9 @@ void ModulationMapper::update_graph_node_params(
 }
 
 void ModulationMapper::initialize_constellation() {
+    if (!d_constellation_) {
+        throw std::runtime_error("Constellation device buffer not allocated");
+    }
     // Create host constellation points
     std::vector<cuComplex> h_constellation(h_descriptor_.constellation_size);
     
@@ -612,10 +622,11 @@ void ModulationMapper::initialize_constellation() {
     
     // Copy to GPU
     size_t constellation_size = h_constellation.size() * sizeof(cuComplex);
-    cudaError_t err = cudaMemcpy(d_constellation_, h_constellation.data(), 
+    cudaError_t err = cudaMemcpy(d_constellation_, h_constellation.data(),
                                 constellation_size, cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
-        throw std::runtime_error("Failed to copy constellation to GPU");
+        throw std::runtime_error(std::string("Failed to copy constellation to GPU: ") +
+                                 cudaGetErrorString(err));
     }
 }
 

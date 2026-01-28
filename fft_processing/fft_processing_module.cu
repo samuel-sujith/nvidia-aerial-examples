@@ -5,10 +5,18 @@
 #include <cuda_runtime.h>
 #include <cufft.h>
 #include <cuComplex.h>
+#include <cstdlib>
 
 using namespace framework::tensor;
 
 namespace fft_processing {
+
+namespace {
+bool debug_enabled() {
+    const char* value = std::getenv("AERIAL_DEBUG");
+    return value && value[0] != '0';
+}
+} // namespace
 
 __global__ void apply_windowing_kernel(const FFTDescriptor* desc) {
     if (!desc || !desc->params || !desc->input_data || !desc->output_data) {
@@ -186,6 +194,16 @@ void FFTProcessor::configure_io(
     dynamic_params_cpu_ptr_->params = d_params_;
     dynamic_params_cpu_ptr_->total_samples = h_descriptor_.total_samples;
     kernel_desc_mgr_->copy_dynamic_descriptors_to_device(stream);
+    if (debug_enabled()) {
+        std::cerr << "[DEBUG] FFTProcessor::configure_io input=" << current_input_
+                  << " d_in=" << d_input_data_
+                  << " d_out=" << d_output_data_
+                  << " d_params=" << d_params_
+                  << " d_window=" << d_window_function_
+                  << " dyn_cpu=" << dynamic_params_cpu_ptr_
+                  << " dyn_gpu=" << dynamic_params_gpu_ptr_
+                  << std::endl;
+    }
 }
 
 void FFTProcessor::set_inputs(std::span<const framework::pipeline::PortInfo> inputs) {
@@ -273,6 +291,16 @@ void FFTProcessor::execute(cudaStream_t stream) {
         err = cudaGetLastError();
         if (err != cudaSuccess) {
             throw std::runtime_error("FFT normalization kernel launch failed");
+        }
+    }
+
+    if (debug_enabled()) {
+        err = cudaPeekAtLastError();
+        std::cerr << "[DEBUG] FFTProcessor::execute cudaPeekAtLastError="
+                  << cudaGetErrorString(err) << std::endl;
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess) {
+            throw std::runtime_error(std::string("Stream sync failed: ") + cudaGetErrorString(err));
         }
     }
 }

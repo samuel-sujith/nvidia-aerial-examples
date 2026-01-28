@@ -7,8 +7,16 @@
 #include <stdexcept>
 #include <iostream>
 #include <cuda_runtime.h>
+#include <cstdlib>
 
 namespace channel_estimation {
+
+namespace {
+bool debug_enabled() {
+    const char* value = std::getenv("AERIAL_DEBUG");
+    return value && value[0] != '0';
+}
+} // namespace
 
 ChannelEstimationPipeline::ChannelEstimationPipeline(
     std::string pipeline_id,
@@ -84,6 +92,15 @@ void ChannelEstimationPipeline::configure_io(
     channel_estimator_->set_inputs(external_inputs);
     std::cout << "[DEBUG] Pipeline: set_inputs called with external inputs. Now calling configure_io..." << std::endl;
     channel_estimator_->configure_io(params, stream);
+    if (debug_enabled()) {
+        std::cerr << "[DEBUG] Pipeline: configure_io done. ext_in[0]="
+                  << (external_inputs.empty() ? nullptr : external_inputs[0].tensors[0].device_ptr)
+                  << " ext_in[1]="
+                  << ((external_inputs.size() > 1 && !external_inputs[1].tensors.empty())
+                          ? external_inputs[1].tensors[0].device_ptr
+                          : nullptr)
+                  << std::endl;
+    }
     // Get module outputs and update external outputs
     auto module_output_ports = channel_estimator_->get_outputs();
     for (size_t i = 0; i < external_outputs.size() && i < module_output_ports.size(); ++i) {
@@ -143,6 +160,15 @@ void ChannelEstimationPipeline::allocate_pipeline_memory() {
         module_slice_.dynamic_kernel_descriptor_cpu_ptr = dynamic_desc_cpu_;
         module_slice_.dynamic_kernel_descriptor_gpu_ptr = dynamic_desc_gpu_;
         module_slice_.dynamic_kernel_descriptor_bytes = dynamic_desc_bytes_;
+    }
+
+    if (debug_enabled()) {
+        std::cerr << "[DEBUG] Pipeline memory: device_tensor_ptr=" << device_memory_
+                  << " bytes=" << memory_size_
+                  << " dyn_cpu=" << static_cast<void*>(dynamic_desc_cpu_)
+                  << " dyn_gpu=" << static_cast<void*>(dynamic_desc_gpu_)
+                  << " dyn_bytes=" << dynamic_desc_bytes_
+                  << std::endl;
     }
 }
 
