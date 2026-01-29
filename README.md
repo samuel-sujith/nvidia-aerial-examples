@@ -16,7 +16,7 @@ This repository contains working examples that demonstrate:
 - **Performance Optimization**: CUDA kernels, stream-based execution, and optimized algorithms
 - **Production Patterns**: Error handling, monitoring, and scalable architecture designs
 
-**Note**: These examples use simplified framework stubs to demonstrate algorithms without requiring full Aerial framework installation. The `canonical_ipipeline` and `canonical_module_api` examples are exceptions and demonstrate the real `IPipeline` and `IModule` lifecycles against the installed framework headers.
+**Note**: These examples use simplified framework stubs to demonstrate algorithms without requiring full Aerial framework installation. The `canonical_ipipeline`, `canonical_module_api`, and `path_loss_prediction` examples are exceptions and demonstrate real framework lifecycles against the installed framework headers.
 
 ## 📁 Repository Structure
 
@@ -86,6 +86,7 @@ nvidia-aerial-examples/
 │   └── CMakeLists.txt           # Shared utilities build configuration
 ├── canonical_ipipeline/         # Canonical IPipeline lifecycle example
 ├── canonical_module_api/        # Canonical IModule lifecycle example
+├── path_loss_prediction/        # Path loss prediction for ULPC
 └── scripts/                     # Build and testing scripts
     ├── build.sh                 # Automated build script
     └── test_all.sh              # Run all examples and tests
@@ -173,6 +174,11 @@ find . -name "*example" -type f -executable
 
 # Canonical module API example (requires AERIAL_FRAMEWORK_ROOT)
 ./canonical_module_api/canonical_module_api_example
+
+# Path loss prediction examples (requires AERIAL_FRAMEWORK_ROOT)
+./path_loss_prediction/path_loss_prediction_example --mlp --model path_loss.engine
+./path_loss_prediction/path_loss_prediction_example --xgboost
+./path_loss_prediction/path_loss_prediction_module_example
 
 # Run simple examples
 ./modulation_mapping/modulation_example
