@@ -185,6 +185,8 @@ int main() {
         auto inverse_pipeline = std::make_unique<fft_processing::FFTProcessingPipeline>(
             "test_ifft_processing", params
         );
+
+        inverse_pipeline->setup();
         
         // Use FFT output as IFFT input
         err = cudaMemcpy(d_input, d_output, data_size, cudaMemcpyDeviceToDevice);
