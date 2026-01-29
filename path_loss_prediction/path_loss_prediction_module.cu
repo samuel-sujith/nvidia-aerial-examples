@@ -18,8 +18,7 @@
 #include <NvInferRuntime.h>
 #include <NvInferVersion.h>
 
-class path_loss_prediction::PathLossPredictionModule::TrtLogger final : public nvinfer1::ILogger {
-public:
+class Logger : public nvinfer1::ILogger {
     void log(Severity severity, const char* msg) noexcept override {
         if (severity <= Severity::kWARNING) {
             std::cout << "TensorRT: " << msg << std::endl;
@@ -27,7 +26,7 @@ public:
     }
 };
 
-static path_loss_prediction::PathLossPredictionModule::TrtLogger gTrtLogger;
+static Logger gLogger;
 #endif
 
 namespace path_loss_prediction {
@@ -400,40 +399,6 @@ void PathLossPredictionModule::deallocate_model_buffers() {
     d_tree_right_value_ = nullptr;
 }
 
-void PathLossPredictionModule::run_fallback_mlp(cudaStream_t stream) {
-    int threads = 128;
-    int blocks = (params_.batch_size + threads - 1) / threads;
-    mlp_predict_kernel<<<blocks, threads, 0, stream>>>(
-        static_cast<const float*>(current_features_),
-        d_output_,
-        d_mlp_w1_,
-        d_mlp_b1_,
-        d_mlp_w2_,
-        d_mlp_b2_,
-        params_.num_features,
-        params_.hidden_size,
-        params_.batch_size);
-}
-
-void PathLossPredictionModule::run_xgboost_style(cudaStream_t stream) {
-    int threads = 128;
-    int blocks = (params_.batch_size + threads - 1) / threads;
-    xgboost_predict_kernel<<<blocks, threads, 0, stream>>>(
-        static_cast<const float*>(current_features_),
-        d_output_,
-        d_tree_feature_idx_,
-        d_tree_threshold_,
-        d_tree_left_value_,
-        d_tree_right_value_,
-        params_.num_trees,
-        params_.num_features,
-        params_.batch_size);
-}
-
-bool PathLossPredictionModule::run_tensorrt(cudaStream_t stream) {
-    return run_trt_inference(stream);
-}
-
 bool PathLossPredictionModule::load_engine_from_file(const std::string& engine_path) {
 #ifdef TENSORRT_AVAILABLE
     std::ifstream file(engine_path, std::ios::binary);
@@ -465,7 +430,7 @@ bool PathLossPredictionModule::load_engine_from_file(const std::string& engine_p
 bool PathLossPredictionModule::initialize_tensorrt_engine() {
 #if defined(TENSORRT_AVAILABLE) && !defined(TENSORRT_STUB)
     try {
-        trt_runtime_ = nvinfer1::createInferRuntime(gTrtLogger);
+        trt_runtime_ = nvinfer1::createInferRuntime(gLogger);
         if (!trt_runtime_) {
             std::cout << "Failed to create TensorRT runtime" << std::endl;
             return false;

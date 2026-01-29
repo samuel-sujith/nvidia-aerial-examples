@@ -130,9 +130,6 @@ private:
         std::vector<float>& thresholds,
         std::vector<float>& left_values,
         std::vector<float>& right_values) const;
-    void run_fallback_mlp(cudaStream_t stream);
-    void run_xgboost_style(cudaStream_t stream);
-    bool run_tensorrt(cudaStream_t stream);
 
     std::string module_id_;
     PathLossModelParams params_;
@@ -155,7 +152,6 @@ private:
     float* d_tree_right_value_{nullptr};
 
 #ifdef TENSORRT_AVAILABLE
-    class TrtLogger;
     nvinfer1::IRuntime* trt_runtime_{nullptr};
     nvinfer1::ICudaEngine* trt_engine_{nullptr};
     nvinfer1::IExecutionContext* trt_context_{nullptr};
