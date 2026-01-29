@@ -68,10 +68,6 @@ int main(int argc, char** argv) {
             return -1;
         }
 
-        // Warmup the pipeline
-        std::cout << "Warming up pipeline..." << std::endl;
-        pipeline->warmup(stream);
-        
         // Generate test data
         int num_pilots = params.num_resource_blocks * 12 / params.pilot_spacing;
         int num_subcarriers = params.num_resource_blocks * 12;
@@ -168,6 +164,10 @@ int main(int argc, char** argv) {
         // Configure pipeline I/O
         framework::pipeline::DynamicParams dyn_params; // Use default/empty for now
         pipeline->configure_io(dyn_params, inputs, outputs, stream);
+
+        // Warmup the pipeline
+        std::cout << "Warming up pipeline..." << std::endl;
+        pipeline->warmup(stream);
 
         // Execute the pipeline
         pipeline->execute_stream(stream);

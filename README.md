@@ -16,7 +16,7 @@ This repository contains working examples that demonstrate:
 - **Performance Optimization**: CUDA kernels, stream-based execution, and optimized algorithms
 - **Production Patterns**: Error handling, monitoring, and scalable architecture designs
 
-**Note**: These examples use simplified framework stubs to demonstrate algorithms without requiring full Aerial framework installation. They showcase the signal processing algorithms and CUDA implementations that can be integrated with the complete framework.
+**Note**: These examples use simplified framework stubs to demonstrate algorithms without requiring full Aerial framework installation. The `canonical_ipipeline` and `canonical_module_api` examples are exceptions and demonstrate the real `IPipeline` and `IModule` lifecycles against the installed framework headers.
 
 ## 📁 Repository Structure
 
@@ -84,6 +84,8 @@ nvidia-aerial-examples/
 │   ├── test_utils.hpp           # Testing and validation utilities
 │   ├── perf_utils.hpp           # Performance measurement tools
 │   └── CMakeLists.txt           # Shared utilities build configuration
+├── canonical_ipipeline/         # Canonical IPipeline lifecycle example
+├── canonical_module_api/        # Canonical IModule lifecycle example
 └── scripts/                     # Build and testing scripts
     ├── build.sh                 # Automated build script
     └── test_all.sh              # Run all examples and tests
@@ -165,6 +167,12 @@ find . -name "*example" -type f -executable
 ./ai_rx_example/ai_rx_example rx_model.engine
 ./ai_rx_example/ai_rx_example
 ./neural_beamforming/neural_beamforming_example
+
+# Canonical IPipeline example (requires AERIAL_FRAMEWORK_ROOT)
+./canonical_ipipeline/canonical_ipipeline_example
+
+# Canonical module API example (requires AERIAL_FRAMEWORK_ROOT)
+./canonical_module_api/canonical_module_api_example
 
 # Run simple examples
 ./modulation_mapping/modulation_example

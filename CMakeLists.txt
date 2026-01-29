@@ -161,6 +161,8 @@ add_subdirectory(common)
 
 # Example modules
 add_subdirectory(channel_estimation)
+add_subdirectory(canonical_ipipeline)
+add_subdirectory(canonical_module_api)
 add_subdirectory(fft_processing)
 add_subdirectory(mimo_detection)
 add_subdirectory(modulation_mapping)

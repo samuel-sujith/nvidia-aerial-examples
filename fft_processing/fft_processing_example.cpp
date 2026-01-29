@@ -87,10 +87,6 @@ int main() {
             return -1;
         }
         
-        // Warmup pipeline
-        std::cout << "Warming up pipeline..." << std::endl;
-        pipeline->warmup(stream);
-        
         // Generate test data
         std::cout << "Generating test data..." << std::endl;
         int total_samples = params.fft_size * params.num_antennas * params.batch_size;
@@ -151,6 +147,10 @@ int main() {
         // Configure pipeline I/O
         framework::pipeline::DynamicParams dynamic_params{};
         pipeline->configure_io(dynamic_params, input_ports, output_ports, stream);
+
+        // Warmup pipeline
+        std::cout << "Warming up pipeline..." << std::endl;
+        pipeline->warmup(stream);
         
         // Execute pipeline
         std::cout << "Executing FFT processing..." << std::endl;
@@ -186,9 +186,6 @@ int main() {
             "test_ifft_processing", params
         );
         
-        inverse_pipeline->setup();
-        inverse_pipeline->warmup(stream);
-        
         // Use FFT output as IFFT input
         err = cudaMemcpy(d_input, d_output, data_size, cudaMemcpyDeviceToDevice);
         if (err != cudaSuccess) {
@@ -197,6 +194,7 @@ int main() {
         }
         
         inverse_pipeline->configure_io(dynamic_params, input_ports, output_ports, stream);
+        inverse_pipeline->warmup(stream);
         inverse_pipeline->execute_stream(stream);
         
         err = cudaStreamSynchronize(stream);
