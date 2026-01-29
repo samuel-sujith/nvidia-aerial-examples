@@ -30,6 +30,7 @@ target_include_directories(path_loss_predictor PUBLIC
 target_link_libraries(path_loss_predictor
     PUBLIC
         CUDA::cudart
+        CUDA::cuda_driver
         framework::pipeline
         framework::tensor
         framework::task
